@@ -12,11 +12,13 @@
     --parchment:#E8E3D5; --slate:#7B8494;
     --amber:#E09F3E; --teal:#4FB3BF; --brick:#C1554D;
     --mono:'IBM Plex Mono',monospace; --disp:'Big Shoulders Display',sans-serif;
+    --bw:clamp(140px, 10.8vw, 172px);   /* one block, edge to edge */
   }
   *{box-sizing:border-box;margin:0}
   body{background:var(--ink);color:var(--parchment);font-family:var(--mono);
        overflow-x:hidden;min-height:100vh}
-  main{max-width:1280px;margin:0 auto;padding:32px 24px 64px}
+  main{width:100%;max-width:1440px;margin:0 auto;
+       padding:32px clamp(16px,2.4vw,32px) 64px}
 
   header{display:flex;justify-content:space-between;align-items:baseline;
          flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--line);padding-bottom:14px}
@@ -37,20 +39,52 @@
   .counterlabel{font-size:11px;color:var(--slate);letter-spacing:.15em}
 
   /* stage */
-  #stage{position:relative;margin-top:30px;display:flex;align-items:center;
-         gap:0;min-height:320px}
+  #stage{position:relative;margin-top:26px;display:flex;align-items:center;
+         gap:0;min-height:calc(var(--bw) * 1.75 + 60px)}
 
   /* portal */
-  #portal{position:relative;width:215px;height:310px;flex:0 0 215px}
-  .pgauge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);
-        white-space:nowrap;font-size:12px;color:var(--slate);letter-spacing:.08em}
-  .pgauge b{color:var(--amber);font-weight:500}
-  #ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-        width:158px;height:276px;border-radius:50%;
-        border:3px solid var(--teal);overflow:hidden;background:#070A10;
-        box-shadow:0 0 24px rgba(79,179,191,.35), inset 0 0 24px rgba(79,179,191,.25);
-        animation:idle 4s ease-in-out infinite}
-  @keyframes idle{50%{box-shadow:0 0 34px rgba(79,179,191,.5), inset 0 0 30px rgba(79,179,191,.35)}}
+  /* Width and height are set independently, because tying both to one
+     multiplier meant every attempt to make it taller also made it fatter.
+     The mouth is 1.10 block-widths across — still wider than the thing
+     coming out of it — and 1.75 block-widths tall, against a block's real
+     on-screen column of ~1.25 (the square, plus its top face, plus the
+     miner label). That is a 40% difference in height, which reads; the
+     11% it had before did not. The box contains only the ring, so its
+     centre and the chain's centre are the same line. */
+  #portal{position:relative;flex:0 0 calc(var(--bw) * 1.10);
+          width:calc(var(--bw) * 1.10)}
+  /* Out of the flow so the portal box IS the ring — anything in the
+     column would shift the mouth off the chain's centre line. Anchored
+     by its top edge, so extra text grows downward into empty space
+     instead of upward into the ellipse. */
+  .pgauge{position:absolute;top:100%;left:-18%;right:-18%;margin-top:12px;
+        text-align:center;white-space:nowrap;
+        font-size:clamp(9.5px,.74vw,11.5px);color:var(--slate);
+        letter-spacing:.1em;text-transform:uppercase}
+  .pgauge b{color:var(--parchment);font-weight:500}
+  .pgauge .q{color:var(--amber)}
+  #ring{position:relative;flex:0 0 auto;
+        width:100%;height:calc(var(--bw) * 1.75);border-radius:50%;
+        border:2px solid rgba(79,179,191,.85);overflow:hidden;background:#070A10;
+        box-shadow:0 0 26px rgba(79,179,191,.28),
+                   0 0 80px rgba(79,179,191,.10),
+                   inset 0 0 34px rgba(79,179,191,.28),
+                   inset 0 0 10px rgba(232,227,213,.14);
+        animation:idle 4.5s ease-in-out infinite}
+  @keyframes idle{50%{box-shadow:0 0 38px rgba(79,179,191,.42),
+                                 0 0 110px rgba(79,179,191,.16),
+                                 inset 0 0 44px rgba(79,179,191,.38),
+                                 inset 0 0 14px rgba(232,227,213,.20)}}
+  /* The exit side. Blocks travel rightward out of the mouth, so the right
+     edge carries a warmer bloom — it points the eye down the chain and
+     gives the ellipse a direction it did not have. */
+  #portal::after{content:"";position:absolute;right:2%;
+        top:calc(var(--bw) * 0.875);
+        transform:translateY(-50%);width:16%;
+        height:calc(var(--bw) * 0.72);border-radius:50%;
+        background:radial-gradient(closest-side,rgba(79,179,191,.45),
+                   rgba(79,179,191,0) 72%);
+        filter:blur(3px);pointer-events:none}
   #ring.fire{animation:fire .9s ease-out}
   @keyframes fire{
     0%{box-shadow:0 0 30px rgba(79,179,191,.5), inset 0 0 30px rgba(79,179,191,.4)}
@@ -65,97 +99,233 @@
   @keyframes flash{15%{opacity:.14}100%{opacity:0}}
 
   /* block row — free-floating, no scrollbar chrome */
-  #row{display:flex;gap:32px;align-items:center;overflow-x:auto;
-       padding:44px 16px 52px;flex:1;
-       scrollbar-width:none;-ms-overflow-style:none}
+  /* min-width:0 is load-bearing: without it a flex child refuses to
+     shrink below its content, and the row pushes the whole column wider
+     than the viewport — which is exactly how the chain escaped before.
+     The right-edge fade is the affordance that says "there is more". */
+  #row{display:flex;gap:clamp(20px,1.9vw,30px);align-items:center;
+       overflow-x:auto;padding:46px 0 46px 26px;flex:1 1 auto;min-width:0;
+       scrollbar-width:none;-ms-overflow-style:none;
+       -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 20px,
+                          #000 calc(100% - 64px),transparent 100%);
+       mask-image:linear-gradient(90deg,transparent 0,#000 20px,
+                  #000 calc(100% - 64px),transparent 100%)}
   #row::-webkit-scrollbar{display:none}
+  #row{cursor:grab}
+  #row.dragging{cursor:grabbing}
+  #row.dragging .block{animation-play-state:paused}
 
+  /* One phase for the whole row: the chain breathes as a single object.
+     Per-block phases made the row look misaligned rather than alive, and
+     broke the link lines between neighbours. */
   @keyframes bob{
     0%,100%{transform:translateY(0)}
-    50%{transform:translateY(calc(-6px * var(--bobdir,1)))}
+    50%{transform:translateY(-4px)}
   }
-  .block{position:relative;flex:0 0 148px;height:172px;border-radius:6px;
-         animation:bob calc(6s + var(--bobvar,0s)) ease-in-out infinite;
-         background:linear-gradient(160deg,#161C27,#0E1520);
-         border:1px solid var(--line);padding:12px 12px 10px;
+
+  /* ---- THE BLOCK SOLID --------------------------------------------------
+     Isometric: the front face IS the box; ::before is the top face and
+     ::after the right face, both skewed 45deg. Only the FRONT face is
+     outlined — angled strokes never align pixel-for-pixel with straight
+     ones, and two independently-bordered skewed shapes beside a straight
+     box is what read as "odd". The faces instead take a wash of the tier
+     colour (--tintbg), so the solid reads as one object in one colour
+     rather than a grey box wearing a coloured front. */
+  /* Square is enforced by aspect-ratio rather than a matching height, so
+     one number controls the size, and that number scales with the
+     viewport between a phone floor and a cap. The cap matters: past
+     ~190px a block stops reading as one object in a chain and starts
+     reading as a panel. */
+  .block{--d:11px;
+         --c:var(--slate); --tintbg:rgba(123,132,148,.10);
+         position:relative;flex:0 0 var(--bw);width:var(--bw);
+         aspect-ratio:1;border-radius:3px;
+         margin-right:var(--d);
+         animation:bob 7s ease-in-out infinite;
+         background:linear-gradient(158deg,#19202C 0%,#111823 58%,#0B111A 100%);
+         border:1.5px solid var(--tb,var(--line));
+         padding:clamp(10px,.85vw,14px) clamp(11px,.9vw,15px) clamp(9px,.8vw,13px);
          display:flex;flex-direction:column;justify-content:space-between}
-  .block::before{content:"";position:absolute;left:6px;right:-6px;top:-10px;height:10px;
-         background:linear-gradient(90deg,#232B3A,#1A2130);
-         transform:skewX(-45deg);border-radius:2px 2px 0 0}
+  .block::before{content:"";position:absolute;left:0;top:calc(-1 * var(--d));
+         width:100%;height:var(--d);
+         background-image:linear-gradient(var(--tintbg),var(--tintbg)),
+                          linear-gradient(100deg,#2B3547,#1E2634);
+         transform:skewX(-45deg);transform-origin:bottom left}
+  .block::after{content:"";position:absolute;top:0;right:calc(-1 * var(--d));
+         width:var(--d);height:100%;
+         background-image:linear-gradient(var(--tintbg),var(--tintbg)),
+                          linear-gradient(190deg,#161D29,#0A0F16);
+         transform:skewY(-45deg);transform-origin:top left}
 
-  .h{font-size:14px;font-weight:500;color:var(--teal)}
-  .meta{font-size:10px;color:var(--slate);line-height:1.7}
-  .share{font-family:var(--disp);font-weight:800;font-size:30px;line-height:1}
-  .sharelabel{font-size:9px;color:var(--slate);letter-spacing:.1em}
-  .fam{font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em}
+  /* These are links in a chain, so draw the link. Spans the gutter to the
+     previous block's right face; alignment holds because every block now
+     bobs on the same phase. */
+  .lnk{position:absolute;top:50%;right:calc(100% + 1px);width:30px;height:2px;
+       margin-top:-1px;pointer-events:none;
+       background:linear-gradient(90deg,rgba(123,132,148,0) 0%,
+                  rgba(123,132,148,.55) 30%,rgba(123,132,148,.55) 70%,
+                  rgba(123,132,148,0) 100%)}
+  .lnk::after{content:"";position:absolute;left:50%;top:50%;
+       width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;
+       background:#6C7889}
 
-  .block.data{border-color:rgba(224,159,62,.7)}
-  .block.data .share{color:var(--amber)}
-  .block.data{box-shadow:0 0 calc(9px + 26px*var(--i)) calc(1px + 5px*var(--i))
-              rgba(224,159,62,calc(.15 + .42*var(--i)))}
-  .block.data::after{content:"";position:absolute;inset:0;border-radius:6px;
-      background:repeating-linear-gradient(115deg,transparent 0 7px,
-                 rgba(224,159,62,.5) 7px 8px,transparent 8px 16px);
-      opacity:calc(.12 + .55*var(--i));mix-blend-mode:screen;pointer-events:none;
-      animation:veins 3s linear infinite}
-  @keyframes veins{to{background-position:32px 0}}
+  /* Identity line. Height stays parchment on purpose: on this card,
+     colour means "how much non-monetary data" and nothing else, so the
+     block number must not compete for it. The dot carries the tier. */
+  .btop{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .h{font-size:clamp(13px,1.02vw,17px);font-weight:500;color:var(--parchment);
+     letter-spacing:.02em}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--c);
+       box-shadow:0 0 7px var(--c);flex:0 0 auto}
+  .meta{font-size:clamp(9.5px,.78vw,12px);color:var(--slate);line-height:1.5;
+        margin-top:3px}
 
-  .block.pure{border-color:rgba(79,179,191,.75)}
-  .block.pure .share{color:var(--teal)}
-  .block.pure::after{content:"";position:absolute;inset:0;border-radius:6px;
-      background:linear-gradient(120deg,transparent 30%,rgba(79,179,191,.28) 50%,transparent 70%);
-      background-size:250% 100%;pointer-events:none;
-      animation:sheen 5s ease-in-out infinite}
-  @keyframes sheen{0%{background-position:120% 0}60%,100%{background-position:-120% 0}}
-  .block.pure .fam::before{content:"PURE MONETARY";color:var(--teal)}
+  /* What it carried: icon, the word, the size. An icon alone is a riddle —
+     the three-line glyph reads as a hamburger menu, not "text". */
+  .zmid{display:flex;align-items:center;gap:6px;color:var(--c)}
+  .ico{width:clamp(13px,1.05vw,17px);height:clamp(13px,1.05vw,17px);
+       opacity:.95;flex:0 0 auto}
+  .typeword{font-size:clamp(8.5px,.68vw,10.5px);color:var(--slate);
+            letter-spacing:.11em;white-space:nowrap}
+  .typesize{margin-left:auto;font-size:clamp(11.5px,.94vw,14.5px);
+            color:var(--parchment);font-weight:500;font-family:var(--mono);
+            letter-spacing:.01em;white-space:nowrap}
 
-  .miner{position:absolute;left:0;right:0;bottom:-26px;text-align:center;
-         font-size:11px;color:var(--slate);letter-spacing:.12em;
-         text-transform:uppercase;white-space:nowrap}
+  .share{font-family:var(--disp);font-weight:800;line-height:1;color:var(--c);
+         font-size:clamp(27px,2.2vw,38px)}
+  .share span{font-size:clamp(11px,.9vw,14px);font-family:var(--mono);
+              font-weight:400;letter-spacing:.02em}
+  .sharelabel{font-size:clamp(7.5px,.62vw,9.5px);color:var(--slate);
+              letter-spacing:.1em;margin-top:2px}
+
+  /* THE FILL — the block drawn as what it is: a container, part of which
+     is not money. Width is a LINEAR share of the block, so 20% looks like
+     a fifth and 0.01% looks like nothing. That is the honest picture and
+     it does the argument's work without a word of copy.
+       dim segment  = ALL non-monetary bytes (ordinary OP_RETURN included)
+       lit segment  = only what the rule changes enabled */
+  .fill{position:relative;height:clamp(6px,.52vw,8px);border-radius:2px;
+        margin-top:clamp(7px,.6vw,10px);
+        background:rgba(232,227,213,.07);color:var(--c)}
+  .fill i{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
+  .fill .all{background:rgba(232,227,213,.20)}
+  .fill .bey{background:currentColor;box-shadow:0 0 7px currentColor}
+
+  /* A tier is now ONE decision: the colour variable, the outline, the
+     face wash and the glow all follow from it. */
+  .block.pure   {--c:#4FB3BF;--tb:rgba(79,179,191,.85);--tintbg:rgba(79,179,191,.14);
+                 box-shadow:0 0 22px 2px rgba(79,179,191,.38)}
+  .block.light  {--c:#5B9DD9;--tb:rgba(91,157,217,.75);--tintbg:rgba(91,157,217,.10)}
+  .block.typical{--c:#C99A4A;--tb:rgba(201,154,74,.72);--tintbg:rgba(201,154,74,.11)}
+  .block.heavy  {--c:#D45A4E;--tb:rgba(212,90,78,.9);--tintbg:rgba(212,90,78,.16);
+                 box-shadow:0 0 22px 2px rgba(212,90,78,.34)}
+
+  .miner{position:absolute;left:0;right:0;bottom:-24px;text-align:center;
+         font-size:clamp(9.5px,.76vw,11.5px);color:var(--slate);
+         letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+
   .block.emerge{animation:emerge 1s cubic-bezier(.2,1.4,.4,1)}
   @keyframes emerge{
     0%{transform:translateX(-120px) scale(.15) rotate(-6deg);opacity:0;filter:brightness(3)}
     55%{opacity:1;filter:brightness(1.8)}
     100%{transform:none;filter:brightness(1)}
   }
-  .block.emerge.data{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
-                     dataBirth 1.6s ease-out}
-  @keyframes dataBirth{30%{box-shadow:0 0 90px 30px rgba(224,159,62,.9)}}
+  .block.emerge.heavy{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+                      dataBirth 1.6s ease-out}
+  @keyframes dataBirth{30%{box-shadow:0 0 90px 30px rgba(212,90,78,.9)}}
+  .block.emerge.light{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+                      coolBirth 1.6s ease-out}
+  @keyframes coolBirth{30%{box-shadow:0 0 80px 26px rgba(91,157,217,.8)}}
+  .block.emerge.pure{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+                     pureBirth 2.6s ease-out}
+  @keyframes pureBirth{
+    0%{box-shadow:0 0 120px 40px rgba(232,227,213,.95)}
+    35%{box-shadow:0 0 70px 20px rgba(79,179,191,.85)}
+    100%{box-shadow:0 0 24px 3px rgba(79,179,191,.42)}
+  }
 
   /* odometer */
+  .measurelabel{font-size:11px;color:var(--slate);letter-spacing:.06em;
+                margin-top:22px;margin-bottom:6px}
+  .measurelabel b{color:var(--parchment);font-weight:500}
+  #cleanbar{display:flex;justify-content:space-between;align-items:baseline;
+            gap:24px;flex-wrap:wrap;margin-top:14px;padding-top:12px;
+            border-top:1px solid var(--line);font-size:13px;color:var(--slate)}
+  #cleanstat b{color:var(--parchment);font-weight:500}
+  #cleanstat .big{color:var(--amber);font-size:17px;font-weight:500}
+  #tierbar{display:flex;justify-content:space-between;align-items:baseline;
+           gap:24px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--slate)}
+  .legend-keys{display:flex;gap:20px;flex-wrap:wrap;font-size:11px;letter-spacing:.04em}
+  .key{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+  .key em{font-style:normal;color:var(--parchment)}
+  .sw{width:11px;height:11px;border-radius:2px;display:inline-block;flex:0 0 auto}
+  /* PURE is filled and lit; BELOW TYPICAL is outlined and cooler-blue.
+     Two teal outlines side by side were indistinguishable. */
+  .sw.pure{border:1px solid #7FD4DC;background:#4FB3BF;
+           box-shadow:0 0 8px rgba(79,179,191,.9)}
+  .sw.light{border:1px solid rgba(91,157,217,.95);background:rgba(91,157,217,.35);
+            box-shadow:0 0 7px rgba(91,157,217,.6)}
+  .sw.typ{border:1px solid rgba(201,154,74,.9);background:rgba(201,154,74,.3)}
+  .sw.data{border:1px solid rgba(212,90,78,.95);background:rgba(212,90,78,.65);
+           box-shadow:0 0 8px rgba(212,90,78,.7)}
+  .tiernote{font-size:11px;color:var(--slate);text-align:right}
+  .tiernote b{color:var(--parchment);font-weight:500}
   #odowrap{margin-top:26px;text-align:center;border-top:1px solid var(--line);
            border-bottom:1px solid var(--line);padding:26px 0 22px}
   .odolabel{font-size:13px;color:var(--slate);letter-spacing:.18em}
+  .odosublabel{font-size:11px;color:var(--slate);opacity:.8;margin-top:6px;
+               max-width:62ch;margin-left:auto;margin-right:auto;line-height:1.6}
   #odometer{font-family:var(--disp);font-weight:800;
             font-size:clamp(38px,6.5vw,76px);line-height:1.1;letter-spacing:1px;
             font-variant-numeric:tabular-nums;margin-top:6px;
             transition:color .3s}
   #odometer.lurch{color:var(--amber);text-shadow:0 0 30px rgba(224,159,62,.5)}
   .odounit{font-size:.32em;color:var(--slate);letter-spacing:2px}
-  .odostats{display:flex;gap:44px;justify-content:center;flex-wrap:wrap;
-            margin-top:16px;font-size:15px;color:var(--slate);letter-spacing:.04em}
-  .odostats b{color:var(--parchment);font-weight:500;font-size:18px}
-  .odostats .k{display:block;font-size:11px;letter-spacing:.15em;margin-bottom:3px}
-  #chainbarwrap{max-width:760px;margin:24px auto 0;display:none}
-  #chaintitle{font-size:12px;color:var(--slate);letter-spacing:.16em;
+  /* Three stats, three DIFFERENT facts. The old row showed "last 24
+     hours" beside "pace / day", which is the same measurement twice —
+     pace IS the 24h figure extrapolated. The freed column now carries
+     the stock figure (share of the whole chain), so the row reads:
+     what arrived, where that leads, where it already stands. */
+  .odostats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+            max-width:780px;margin:26px auto 0;color:var(--slate);
+            text-align:center}
+  .odostats > span{padding:2px 14px;border-left:1px solid var(--line)}
+  .odostats > span:first-child{border-left:0}
+  .odostats b{display:block;color:var(--parchment);font-weight:500;
+              font-size:clamp(17px,1.45vw,22px);margin-top:6px;
+              font-variant-numeric:tabular-nums}
+  .odostats .k{display:block;font-size:10px;letter-spacing:.14em;
+               line-height:1.5}
+
+  /* Labels sit UNDER the bar, not inside it. At ~5% the slice is thinner
+     than its own caption, so anything printed on top of it either
+     overlaps the remainder or floats away from what it names. */
+  #chainbarwrap{max-width:820px;margin:30px auto 0;display:none}
+  #chaintitle{font-size:11px;color:var(--slate);letter-spacing:.16em;
               text-align:center;margin-bottom:10px}
   #chaintitle b{color:var(--parchment);font-weight:500}
-  #chainbar{position:relative;height:40px;background:#151B26;
+  #chainbar{position:relative;height:32px;background:#151B26;
             border:1px solid var(--line);border-radius:4px;overflow:hidden}
-  #chainfill{position:absolute;left:0;top:0;bottom:0;width:0%;
-             background:var(--amber);box-shadow:0 0 14px rgba(224,159,62,.55);
+  #chainfill{position:absolute;left:0;top:0;bottom:0;width:0%;min-width:4px;
+             background:var(--amber);box-shadow:0 0 16px rgba(224,159,62,.5);
              transition:width 1.2s ease}
-  #chaindata{position:absolute;top:50%;transform:translateY(-50%);
-             left:0;white-space:nowrap;font-size:13px;color:var(--amber);
-             font-weight:500;transition:left 1.2s ease}
-  #chainrest{position:absolute;top:50%;right:12px;transform:translateY(-50%);
-             font-size:13px;color:var(--slate)}
+  #chainlegend{display:flex;justify-content:space-between;gap:14px;
+               flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--slate)}
+  #chainlegend b{font-weight:500}
+  #chaindata b{color:var(--amber)}
+  #chainrest b{color:var(--parchment)}
+  .cl{display:inline-flex;align-items:center;gap:8px}
+  .csw{width:10px;height:10px;border-radius:2px;flex:0 0 auto}
+  .csw.data{background:var(--amber);box-shadow:0 0 8px rgba(224,159,62,.6)}
+  .csw.rest{background:#2A3342}
   .odosub{font-size:12px;color:var(--slate);margin-top:10px;letter-spacing:.05em}
   .odosub b{color:var(--parchment);font-weight:500}
 
   #pilechart{margin-top:36px}
   .chartlabel{font-size:13px;color:var(--slate);letter-spacing:.18em;text-align:center}
   #c_pile{height:420px;margin-top:14px}
+  .missing{display:flex;align-items:center;justify-content:center;height:100%;
+           color:var(--brick);font-size:12px;text-align:center;padding:0 24px}
   .chartfoot{font-size:12px;color:var(--slate);text-align:center;margin-top:8px;
              letter-spacing:.04em}
   .chartfoot b{color:var(--parchment);font-weight:500}
@@ -176,6 +346,28 @@
             letter-spacing:.04em}
   .legend{margin-top:20px;font-size:13px;color:var(--slate);max-width:90ch;line-height:1.7}
   .legend b{color:var(--parchment);font-weight:500}
+  /* --- breakpoints ------------------------------------------------- */
+  /* The portal goes first — it is atmosphere, and atmosphere should not
+     cost a phone half its screen. */
+  @media (max-width:900px){
+    #stage{flex-direction:column;align-items:stretch;min-height:0}
+    #portal{width:auto;flex:0 0 auto;align-items:flex-start}
+    #ring,#portal::after{display:none}
+    .pgauge{position:static;left:auto;right:auto;margin:0 0 10px;
+            text-align:left;white-space:normal}
+    #row{padding-left:0;
+         -webkit-mask-image:linear-gradient(90deg,#000 0,
+                            #000 calc(100% - 48px),transparent 100%);
+         mask-image:linear-gradient(90deg,#000 0,
+                    #000 calc(100% - 48px),transparent 100%)}
+  }
+  @media (max-width:700px){
+    .odostats{grid-template-columns:1fr!important;gap:16px}
+    .odostats > span{border-left:0!important;padding-left:0!important}
+    #chainlegend{justify-content:flex-start!important}
+    #cleanbar,#tierbar{gap:12px}
+  }
+
   @media (prefers-reduced-motion: reduce){*{animation:none!important}}
 </style>
 </head>
@@ -193,26 +385,48 @@
     <div class="counterlabel">SINCE LAST BLOCK · TARGET ~10:00</div>
   </div>
 
+  <div class="measurelabel" id="blockmeasure">
+    BLOCKS &amp; CLOCK · counting only what the rule changes enabled —
+    inscription envelopes + OP_RETURN past the old 83-byte allowance
+    <span style="opacity:.65">· drag the chain for older blocks</span>
+  </div>
+
   <div id="stage">
     <div id="portal">
-      <div class="pgauge" id="pgauge">mempool —</div>
+      <!-- caption sits under the aperture; the ring is the graphic -->
       <div id="ring"><canvas id="vortex"></canvas></div>
+      <div class="pgauge" id="pgauge">MEMPOOL <b>—</b></div>
     </div>
     <div id="row"></div>
   </div>
 
+  <div id="cleanbar"><span id="cleanstat"></span></div>
+
+  <div id="tierbar">
+    <span class="legend-keys">
+      <span class="key"><i class="sw pure"></i>PURE <em>nothing new</em></span>
+      <span class="key"><i class="sw light"></i>BELOW TYPICAL <em id="r_low">—</em></span>
+      <span class="key"><i class="sw typ"></i>TYPICAL <em id="r_mid">—</em></span>
+      <span class="key"><i class="sw data"></i>ABOVE TYPICAL <em id="r_high">—</em></span>
+    </span>
+    <span class="tiernote" id="tiernote"></span>
+  </div>
+
   <div id="odowrap">
-    <div class="odolabel">THE PILE · ALL NON-MONETARY DATA EVER WRITTEN TO BITCOIN</div>
+    <div class="odolabel">THE PILE · NON-MONETARY BYTES ON THE CHAIN</div>
+    <div class="odosublabel">every full node downloads, verifies and keeps all of
+      it. Counted differently from the blocks above: this includes ordinary
+      OP_RETURN, because storage does not care which rule let the bytes in.</div>
     <div id="odometer">—</div>
-    <div class="odostats" id="odostats"></div>
     <div id="chainbarwrap">
       <div id="chaintitle"></div>
-      <div id="chainbar">
-        <div id="chainfill"></div>
-        <div id="chaindata"></div>
-        <div id="chainrest"></div>
+      <div id="chainbar"><div id="chainfill"></div></div>
+      <div id="chainlegend">
+        <span class="cl"><i class="csw data"></i><span id="chaindata"></span></span>
+        <span class="cl"><i class="csw rest"></i><span id="chainrest"></span></span>
       </div>
     </div>
+    <div class="odostats" id="odostats"></div>
     <div class="odosub" id="odosub">loading historical base…</div>
   </div>
 
@@ -229,9 +443,10 @@
       protocol payloads filtered out</div>
   </section>
 
-  <p class="legend">Printed % = exact non-monetary share of each block; the amber
-    aura scales perceptually so small shares stay visible. Zero-data blocks harden
-    clean teal. The portal charges with time since the last block and mempool depth.</p>
+  <p class="legend">Ordinary OP_RETURNs under 83 bytes are excluded from the block
+    grading above: that channel was deliberately created in 2014, so counting it
+    would measure the settlement rather than the departure from it. The portal
+    charges with time since the last block and with mempool depth.</p>
 </main>
 
 <script>
@@ -244,6 +459,7 @@ let known = new Set();
 let lastBlockTime = null;
 let firstLoad = true;
 let PRESSURE = 0;         // mempool depth, 0..1 log scale
+let TIERS = null;         // quartile boundaries, frozen at export time
 let burst = 0;            // spikes to 1 when a block fires, decays
 
 // ---- combined charge: crescendo ---------------------------------------
@@ -270,14 +486,12 @@ function sizeVortex(){
 }
 
 const P = [];               // particles
-for(let i=0;i<110;i++) P.push({
+for(let i=0;i<170;i++) P.push({
   a: Math.random()*Math.PI*2,
   r: Math.pow(Math.random(), .7),
   w: .6 + Math.random()*.8,
   pa: 0, pr: 0,
 });
-const ripples = [];
-let nextRipple = 0;
 const bolts = [];
 let nextBolt = performance.now() + 2500;
 
@@ -302,23 +516,6 @@ function frame(now){
 
   ctx.clearRect(0,0,W,H);
 
-  // ripples (water breathing from the throat)
-  if(now > nextRipple){
-    ripples.push({r: .08, life: 1});
-    nextRipple = now + lerp(2600, 380, I) * (0.7+Math.random()*0.6);
-  }
-  for(let i=ripples.length-1;i>=0;i--){
-    const rp = ripples[i];
-    rp.r += dt * lerp(.18, .55, I + burst);
-    rp.life = 1 - rp.r;
-    if(rp.life <= 0){ ripples.splice(i,1); continue; }
-    ctx.beginPath();
-    ctx.ellipse(CX, CY, RX*rp.r, RY*rp.r, 0, 0, Math.PI*2);
-    ctx.strokeStyle = `rgba(${I>.55?'224,159,62':'79,179,191'},${(rp.life*.4*(0.3+I)).toFixed(3)})`;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-  }
-
   // particles: elliptical vortex, inner shear, spiral-in
   for(const p of P){
     p.pa = p.a; p.pr = p.r;
@@ -329,21 +526,32 @@ function frame(now){
     const x2 = CX + Math.cos(p.a)*RX*p.r,  y2 = CY + Math.sin(p.a)*RY*p.r;
     const heat = clamp(I*0.75 + (1-p.r)*0.35, 0, 1);
     const cr = lerp(79,224,heat)|0, cg = lerp(179,159,heat)|0, cb = lerp(191,62,heat)|0;
-    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.22+0.6*I).toFixed(2)})`;
-    ctx.lineWidth = lerp(.8, 1.8, I);
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.30+0.55*I).toFixed(2)})`;
+    ctx.lineWidth = lerp(1, 2, I);
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
   }
 
-  // dark throat over the center
-  const g = ctx.createRadialGradient(CX,CY,4,CX,CY,RY*.75);
-  g.addColorStop(0, `rgba(7,10,16,${(.95 - burst*.5).toFixed(2)})`);
-  g.addColorStop(.55, 'rgba(7,10,16,.45)');
+  // The throat. Tightened and lightened: at .95 over 75% of the radius it
+  // was not a throat, it was a lid, and it hid the spiral almost entirely.
+  const g = ctx.createRadialGradient(CX,CY,2,CX,CY,RY*.55);
+  g.addColorStop(0, `rgba(7,10,16,${(.80 - burst*.45).toFixed(2)})`);
+  g.addColorStop(.6, 'rgba(7,10,16,.30)');
   g.addColorStop(1, 'rgba(7,10,16,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0,0,W,H);
 
+  // A light at the bottom of it, so the centre is a depth rather than a
+  // hole. Cool when idle, parchment-white as the charge builds.
+  const Icore = clamp(I + burst, 0, 1);
+  const core = ctx.createRadialGradient(CX,CY,0,CX,CY,RY*.34);
+  core.addColorStop(0, `rgba(${Icore > .55 ? '240,232,214' : '138,212,221'},`
+                     + `${(.10 + .34*Icore).toFixed(2)})`);
+  core.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(0,0,W,H);
+
   // lightning
-  const Ieff = clamp(I + burst, 0, 1);
+  const Ieff = Icore;                 // same charge, already clamped above
   if(now > nextBolt && Ieff > 0.1){
     spawnBolt(Math.random() < Ieff*0.55);
     const rate = 0.05 + Ieff*Ieff*3.4;
@@ -376,6 +584,14 @@ function frame(now){
 // written by export.py), then incremented by exact live blocks above the
 // historical coverage. Sits still between blocks — correctly — and
 // lurches when data lands.
+// "1 days" is the kind of small wrongness that makes a reader doubt the
+// big numbers too. Under a day gets its own phrasing rather than "0 days".
+function plainDays(d){
+  const n = Math.floor(d);
+  if(n <= 0) return 'less than a day';
+  return n === 1 ? '1 day' : `${n.toLocaleString()} days`;
+}
+
 let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
 let CUM = null;
 async function seedOdometer(){
@@ -384,7 +600,55 @@ async function seedOdometer(){
     if(!r.ok) throw 0;
     const c = await r.json();
     CUM = c;
-    const wmb = c.witness_content_mb, omb = c.opreturn_mb;
+    const lc = c._meta?.last_clean;
+    if(lc){
+      const el = $('cleanstat');
+      if(lc.block){
+        const days = (Date.now()/1000 - lc.block.time) / 86400;
+        el.innerHTML =
+          `<span class="big">${plainDays(days)}</span> since a block contained nothing the old rules would have blocked ` +
+          `<span style="color:var(--slate)">· height ${lc.block.height.toLocaleString()}` +
+          (lc.unmeasured_above > 1000
+            ? ` · ${(lc.unmeasured_above/1000).toFixed(0)}k newer blocks unscanned` : '') +
+          `</span>`;
+      } else {
+        el.innerHTML = `<span class="big">no data-free block</span> anywhere in the scanned range`;
+      }
+
+    }
+
+    const t = c._meta?.tiers;
+    if(t){
+      TIERS = t;
+      const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const nice = s => { const [y,m] = s.split('-'); return `${MON[+m-1]} ${y}`; };
+      // Grading live blocks against a window that ended long ago is an
+      // apples-to-oranges comparison. Say so rather than let the tiers
+      // look authoritative.
+      // Numbers belong next to the colour they describe, not in a
+      // separate line of percentages the reader has to map back.
+      const pc = v => (v*100).toFixed(v < 0.01 ? 2 : 1) + '%';
+      $('r_low').textContent  = `< ${pc(t.p25)}`;
+      $('r_mid').textContent  = `${pc(t.p25)}–${pc(t.p75)}`;
+      $('r_high').textContent = `> ${pc(t.p75)}`;
+      $('tiernote').innerHTML =
+        `median block <b>${pc(t.median)}</b> · ranges from ` +
+        `${(t.window_blocks/1000).toFixed(0)}k blocks, ` +
+        `${nice(t.derived_from[0])} – ${nice(t.derived_from[1])}`;
+      // any blocks already drawn used the fallback floor; restyle them
+      // Blocks drawn before the thresholds arrived all defaulted to the
+      // top tier; reclassify them now that the bands are known.
+      document.querySelectorAll('.block[data-share]').forEach(el => {
+        const s = parseFloat(el.dataset.share || '0');
+        const t = tierOf({beyond_bytes: s === 0 ? 0 : 1, beyond_share: s});
+        el.classList.remove('light', 'typical', 'heavy');
+        el.classList.add(t);
+      });
+    }
+    // MUST match what the poller adds per live block: envelope bytes
+    // (the full data-carrying construct nodes download), not content
+    // bytes. Mixing the two made the odometer outrun its own baseline.
+    const wmb = c.witness_envelope_mb, omb = c.opreturn_mb;
     odoBase = ((wmb?.[wmb.length-1]||0) + (omb?.[omb.length-1]||0)) * 1e6;
     const ds = c._meta?.datasets || {};
     odoGate = Math.max(ds.witness?.height_range?.[1] || 0,
@@ -439,7 +703,7 @@ function odoFrame(){
   }
   if(odoTarget > 0){
     const gb = odoShown/1e9;
-    $('odometer').innerHTML = gb.toFixed(3) +
+    $('odometer').innerHTML = gb.toFixed(2) +
       `<span class="odounit"> GB</span>` +
       `<div class="odounit" style="font-size:.28em;margin-top:4px">${Math.round(odoShown).toLocaleString()} bytes</div>`;
   }
@@ -447,7 +711,30 @@ function odoFrame(){
 }
 
 // ---- blocks ------------------------------------------------------------
-const intensity = share => Math.min(1, Math.pow(share, 0.35));
+// The four tiers carry the categorical signal, the exact percentage is
+// printed, and the fill bar draws the magnitude. The glow is therefore
+// uniform within a tier — scaling it too would be a fourth encoding of
+// one number.
+
+// Which quartile band a block falls in. PURE is exact-zero, not a band.
+// Tiers grade a block on BEYOND-BASELINE bytes only — what post-2022
+// policy changes enabled. A block full of ordinary sub-83-byte
+// OP_RETURNs counts as pure: that channel was the 2014 settlement.
+function beyondShare(b){
+  return b.beyond_share !== undefined ? b.beyond_share : b.data_share;
+}
+function beyondBytes(b){
+  return b.beyond_bytes !== undefined ? b.beyond_bytes : b.data_bytes;
+}
+function tierOf(b){
+  if(beyondBytes(b) === 0) return 'pure';
+  if(!TIERS) return 'heavy';
+  const s = beyondShare(b);
+  if(s < TIERS.p25) return 'light';
+  if(s < TIERS.p75) return 'typical';
+  return 'heavy';
+}
+
 function fmtAge(s){
   const m = Math.floor(s/60), ss = String(Math.max(0,Math.floor(s%60))).padStart(2,'0');
   return `${m}:${ss}`;
@@ -457,30 +744,111 @@ function fmtBytes(b){
   if(b >= 1e3) return (b/1e3).toFixed(1)+' KB';
   return b+' B';
 }
+// Bar widths are a LINEAR share of the block. A floor of 1.2% keeps a
+// sliver visible for tiny values — without it a 0.01% block looks
+// identical to a pure one, which is a different claim entirely.
+function barWidth(pct){
+  if(pct <= 0) return 0;
+  return Math.min(100, Math.max(1.2, pct));
+}
 function blockEl(b, isNew){
   const el = document.createElement('div');
-  el.style.setProperty('--bobvar', ((b.height % 5) * 0.7).toFixed(1) + 's');
-  el.style.setProperty('--bobdir', (b.height % 2 ? 1 : -1));
   el.addEventListener('animationend', e => {
     if(e.animationName === 'emerge') el.classList.remove('emerge');
   });
-  const pure = b.data_bytes === 0;
-  el.className = 'block ' + (pure ? 'pure' : 'data') + (isNew ? ' emerge' : '');
-  if(!pure) el.style.setProperty('--i', intensity(b.data_share));
-  const pct = (b.data_share*100);
+  const tier = tierOf(b);
+  const pure = tier === 'pure';
+  el.className = 'block ' + tier + (isNew ? ' emerge' : '');
+  el.dataset.share = beyondShare(b);
+
+  const pct = beyondShare(b) * 100;
+  const allPct = (b.data_share !== undefined ? b.data_share : beyondShare(b)) * 100;
+  const kind = contentKind(b);
+
   el.innerHTML = `
     <div>
-      <div class="h">${b.height.toLocaleString()}</div>
-      <div class="meta">${b.tx_count.toLocaleString()} txs<br>${fmtBytes(b.block_size)}</div>
+      <div class="btop">
+        <div class="h">${b.height.toLocaleString()}</div>
+        <i class="dot"></i>
+      </div>
+      <div class="meta">${fmtBytes(b.block_size)} · ${b.tx_count.toLocaleString()} txs</div>
+    </div>
+    <div class="zmid" title="${kind.label}">
+      ${ICONS[kind.icon]}<div class="typeword">${kind.word}</div>
+      ${kind.size ? `<div class="typesize">${kind.size}</div>` : ''}
     </div>
     <div>
-      <div class="share">${pure ? '0' : (pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1))}<span style="font-size:14px">%</span></div>
-      <div class="sharelabel">NON-MONETARY</div>
-      <div class="fam">${pure ? '' : (b.top_family || 'data')}${pure ? '' : ' · ' + fmtBytes(b.data_bytes)}</div>
+      <div class="share">${pure ? '0' : (pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1))}<span>%</span></div>
+      <div class="sharelabel">BEYOND OLD LIMITS</div>
+      <div class="fill">
+        <i class="all" style="width:${barWidth(allPct)}%"></i>
+        <i class="bey" style="width:${barWidth(pct)}%"></i>
+      </div>
     </div>
     ${b.miner ? `<div class="miner">⛏ ${b.miner}</div>` : ''}`;
-  el.title = `block ${b.height}\ndata ${b.data_bytes.toLocaleString()} B of ${b.block_size.toLocaleString()} B`;
+
+  el.querySelector('.fill').title =
+    `bar = share of this block\n` +
+    `lit:  ${pct.toFixed(2)}% beyond the old limits\n` +
+    `dim:  ${allPct.toFixed(2)}% all non-monetary`;
+
+  const lnk = document.createElement('i');
+  lnk.className = 'lnk';
+  el.appendChild(lnk);
+
+  el.title = `block ${b.height}\n` +
+    `beyond old limits: ${beyondBytes(b).toLocaleString()} B\n` +
+    `all non-monetary: ${b.data_bytes.toLocaleString()} B\n` +
+    `block size: ${b.block_size.toLocaleString()} B`;
   return el;
+}
+
+// 22px line icons, stroked in the tier colour via currentColor.
+const ICONS = {
+  image: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><circle cx="8" cy="10" r="1.8"/><path d="M3 17l5-5 4 4 3-3 6 6"/></svg>',
+  text:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 6h16M4 11h16M4 16h10"/></svg>',
+  video: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M10 9.5l5 2.5-5 2.5z" fill="currentColor" stroke="none"/></svg>',
+  audio: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 9.5v5h3.5L12 18V6L7.5 9.5H4z"/><path d="M16 9a4 4 0 010 6"/></svg>',
+  model: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 3v18M4 7.5l8 4.5 8-4.5"/></svg>',
+  code:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 5c-2.5 0-2 4.5-4.5 4.5C6 9.5 5.5 14 8 14"/><path d="M16 5c2.5 0 2 4.5 4.5 4.5C18 9.5 18.5 14 16 14"/></svg>',
+  data:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6"/><path d="M4.5 11.5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/></svg>',
+  clean: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"/></svg>',
+};
+
+// family substring -> icon, one-word card label, full name for the tooltip
+const KIND_MAP = [
+  ['image', 'image', 'IMAGE', 'image'], ['video', 'video', 'VIDEO', 'video'],
+  ['audio', 'audio', 'AUDIO', 'audio'], ['model', 'model', '3D', '3D model'],
+  ['html', 'code', 'HTML', 'HTML page'], ['javascript', 'code', 'CODE', 'javascript'],
+  ['json', 'code', 'JSON', 'JSON'], ['text', 'text', 'TEXT', 'text'],
+];
+
+// The centre zone: what kind of thing this block is carrying, and how
+// much of it. Icon plus one word reads faster than a byte count alone.
+// When a block has BOTH an inscription and OP_RETURN excess, showing
+// "608 B +7 B" answers a question nobody asked (two unlabelled numbers
+// added together). Instead: show whichever component is larger — that
+// is what actually earned the block's tier — and name the other one
+// explicitly in the tooltip rather than mashing both into one line.
+function contentKind(b){
+  if(beyondBytes(b) === 0)
+    return {icon:'clean', word:'NOTHING NEW', size:'',
+            label:'nothing the old rules would have blocked'};
+  const fam = (b.top_family || '').toLowerCase();
+  const env = b.envelope_bytes || 0;
+  const exc = b.opreturn_excess_bytes || 0;
+
+  if(env === 0)
+    return {icon:'data', word:'OP_RETURN', size:fmtBytes(exc),
+            label:`${fmtBytes(exc)} of OP_RETURN beyond the old 83-byte allowance`};
+
+  let icon = 'data', word = 'DATA', full = 'inscribed data';
+  for(const [key, ic, w, name] of KIND_MAP)
+    if(fam.includes(key)){ icon = ic; word = w; full = name; break; }
+
+  let label = `${fmtBytes(env)} inscribed — largest family: ${full}`;
+  if(exc > 0) label += `\nplus ${fmtBytes(exc)} OP_RETURN beyond the old allowance`;
+  return {icon, word, label, size: fmtBytes(env)};
 }
 
 function fire(){
@@ -492,12 +860,18 @@ function fire(){
   if(!REDUCED) for(let i=0;i<9;i++) spawnBolt(i%2===0);
 }
 
+// Two measured facts, one line, no interpretation. Every translation of
+// mempool size into "blocks" or "minutes" smuggles in an assumption about
+// what gets mined next, and this page's whole claim to authority is that
+// every printed number came off the node. PRESSURE still drives the
+// animation — the portal shows the pressure, the caption states the size.
 function setPressure(mem){
-  if(!mem){ PRESSURE = 0; $('pgauge').textContent = 'mempool —'; return; }
+  if(!mem){ PRESSURE = 0; $('pgauge').innerHTML = 'MEMPOOL <b>—</b>'; return; }
   const vMB = Math.max(mem.vbytes / 1e6, 0.1);
   PRESSURE = clamp(Math.log10(vMB) / Math.log10(300), 0, 1);
   $('pgauge').innerHTML =
-    `mempool <b>${vMB.toFixed(1)} vMB</b> · charge <b>${Math.round(charge()*100)}%</b>`;
+    `MEMPOOL <b>${vMB.toFixed(1)} vMB</b>` +
+    (mem.txs ? ` · <b>${mem.txs.toLocaleString()}</b> TXS` : '');
 }
 
 async function poll(){
@@ -521,11 +895,11 @@ async function poll(){
       setTimeout(()=>{
         fire();
         row.prepend(blockEl(b, true));
-        while(row.children.length > 12) row.lastChild.remove();
+        while(row.children.length > 40) row.lastChild.remove();
       }, i*1200);
     });
   } else if(firstLoad){
-    d.blocks.slice(0,12).reverse().forEach(b => row.prepend(blockEl(b, false)));
+    d.blocks.slice(0,40).reverse().forEach(b => row.prepend(blockEl(b, false)));
     firstLoad = false;
   }
   d.blocks.forEach(b => known.add(b.height));
@@ -533,30 +907,33 @@ async function poll(){
   $('win').textContent = d.blocks.length;
   if(odoSeeded || odoGate === 0) setOdoTarget();
 
-  // chain context bar: the pile at true scale against the whole chain
+  // chain context bar: the pile at true scale against the whole chain.
+  // Same rounding everywhere — 44.3 GB in the legend beside 44.275 GB in
+  // the odometer reads as two different numbers to anyone not looking
+  // closely, so both now come off the same value at the same precision.
+  let chainPct = null;
   if(d.chain_bytes > 0 && odoTarget > 0){
-    const pct = odoTarget / d.chain_bytes * 100;
+    chainPct = odoTarget / d.chain_bytes * 100;
     $('chainbarwrap').style.display = 'block';
     $('chaintitle').innerHTML =
-      `THE FULL BLOCKCHAIN · <b>${(d.chain_bytes/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
-    $('chainfill').style.width = pct.toFixed(2) + '%';
-    // data label sits just right of the amber fill (inside it if it grows huge)
-    $('chaindata').textContent =
-      `◼ non-monetary ${(odoTarget/1e9).toFixed(1)} GB · ${pct.toFixed(1)}%`;
-    $('chaindata').style.left = `calc(${Math.min(pct,60).toFixed(2)}% + 12px)`;
-    $('chainrest').textContent =
-      `monetary + overhead ${((d.chain_bytes-odoTarget)/1e9).toFixed(0)} GB · ${(100-pct).toFixed(1)}%`;
+      `THE WHOLE BLOCKCHAIN · <b>${(d.chain_bytes/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
+    $('chainfill').style.width = chainPct.toFixed(2) + '%';
+    $('chaindata').innerHTML =
+      `non-monetary <b>${(odoTarget/1e9).toFixed(2)} GB</b> · ${chainPct.toFixed(1)}%`;
+    $('chainrest').innerHTML =
+      `everything else <b>${((d.chain_bytes-odoTarget)/1e9).toFixed(0)} GB</b> · ${(100-chainPct).toFixed(1)}%`;
   }
 
-  // trailing-24h accumulation from the poller's persistent history.
-  // Until a full day of history exists, the label shows the real span.
+  // Trailing-24h accumulation from the poller's persistent history.
+  // Until a full day exists the label shows the real span, so a partial
+  // window is never passed off as a day.
   if(d.day){
     const full = d.day.hours >= 23.5;
     const perDay = d.day.data_bytes / d.day.hours * 24;
     $('odostats').innerHTML =
-      `<span><span class="k">${full ? 'LAST 24 HOURS' : `LAST ${d.day.hours} H (BUILDING TO 24)`}</span><b>+${fmtBytes(d.day.data_bytes)}</b></span>`+
-      `<span><span class="k">PACE</span><b>${fmtBytes(perDay)} / day</b></span>`+
-      `<span><span class="k">AT THIS PACE</span><b>${(perDay*365/1e9).toFixed(1)} GB / year</b></span>`;
+      `<span><span class="k">${full ? 'ARRIVED IN THE LAST 24 HOURS' : `ARRIVED IN ${d.day.hours} H · BUILDING TO 24`}</span><b>+${fmtBytes(d.day.data_bytes)}</b></span>`+
+      `<span><span class="k">AT THAT RATE, EVERY YEAR</span><b>${(perDay*365/1e9).toFixed(1)} GB</b></span>`+
+      `<span><span class="k">SHARE OF EVERYTHING A NODE STORES</span><b>${chainPct === null ? '—' : chainPct.toFixed(1) + '%'}</b></span>`;
   }
 }
 
@@ -619,6 +996,50 @@ function renderWire(hist){
   }
 }
 
+// ---- drag to pan the block row -----------------------------------------
+// No scrollbar: the row is a strip of chain you pull left and right.
+// Momentum on release so a flick keeps travelling briefly.
+(function enableDrag(){
+  const row = $('row');
+  let down = false, startX = 0, startScroll = 0, lastX = 0, lastT = 0, vel = 0, raf = 0;
+
+  row.addEventListener('pointerdown', e => {
+    down = true; row.classList.add('dragging');
+    startX = lastX = e.clientX; startScroll = row.scrollLeft;
+    lastT = performance.now(); vel = 0;
+    cancelAnimationFrame(raf);
+    row.setPointerCapture(e.pointerId);
+  });
+  row.addEventListener('pointermove', e => {
+    if(!down) return;
+    e.preventDefault();
+    row.scrollLeft = startScroll - (e.clientX - startX);
+    const now = performance.now(), dt = now - lastT;
+    if(dt > 0){ vel = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = now; }
+  });
+  function release(e){
+    if(!down) return;
+    down = false; row.classList.remove('dragging');
+    try{ row.releasePointerCapture(e.pointerId); }catch(_){}
+    let v = vel * 16;
+    (function glide(){
+      if(Math.abs(v) < 0.4) return;
+      row.scrollLeft -= v; v *= 0.94;
+      raf = requestAnimationFrame(glide);
+    })();
+  }
+  row.addEventListener('pointerup', release);
+  row.addEventListener('pointercancel', release);
+  row.addEventListener('dragstart', e => e.preventDefault());
+  // shift+wheel pans horizontally, a familiar convention
+  row.addEventListener('wheel', e => {
+    if(e.deltaX !== 0 || e.shiftKey){
+      e.preventDefault();
+      row.scrollLeft += (e.deltaX || e.deltaY);
+    }
+  }, { passive: false });
+})();
+
 function tick(){
   if(lastBlockTime){
     const s = Date.now()/1000 - lastBlockTime;
@@ -627,13 +1048,21 @@ function tick(){
   }
 }
 
+function chartError(id, e){
+  const el = document.getElementById(id);
+  if(el) el.innerHTML =
+    '<div class="missing">chart failed to render — ' +
+    String(e && e.message ? e.message : e).slice(0,120) + '</div>';
+  console.error('[' + id + ']', e);
+}
+
 // ---- the pile over time ------------------------------------------------
 // Same data as the odometer seed, drawn as the story: inscriptions from
 // Dec 2022, OP_RETURN joining the stack. GB axis for humans.
 function renderPile(){
   if(!CUM || typeof echarts === 'undefined'){ $('pilechart').style.display='none'; return; }
   const months = CUM.months;
-  const wGB = CUM.witness_content_mb.map(v=>+(v/1000).toFixed(2));
+  const wGB = CUM.witness_envelope_mb.map(v=>+(v/1000).toFixed(2));
   const oGB = CUM.opreturn_mb.map(v=>+(v/1000).toFixed(2));
   const SHORT = {'First inscription':null,          // chart starts here — no label needed
                  'BRC-20 launches':'BRC-20',
@@ -691,7 +1120,7 @@ function renderPile(){
   sizeVortex();
   addEventListener('resize', sizeVortex);
   await seedOdometer();
-  renderPile();
+  try { renderPile(); }  catch(e){ chartError('c_pile', e); }
   await poll();
   setInterval(poll, 5000);
   setInterval(tick, 1000);

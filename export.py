@@ -75,6 +75,26 @@ def sampling_step(rows):
     return int(statistics.median(b - a for a, b in zip(hs, hs[1:]))) or 1
 
 
+def monthly_steps(rows, fallback):
+    """Per-month sampling step, from the median height gap WITHIN each
+    month. A dataset that is half full-scan (gap 1) and half sampled
+    (gap 100) would be catastrophically mis-scaled by one global step:
+    the sparse months would be counted at 1/100th of their true value.
+    Per-month steps make exports safe to run mid-scan."""
+    by_month = defaultdict(list)
+    for r in rows:
+        by_month[month_key(r["block_time"])].append(r["height"])
+    steps = {}
+    for m, hs in by_month.items():
+        hs.sort()
+        if len(hs) < 2:
+            steps[m] = fallback
+        else:
+            steps[m] = int(statistics.median(
+                b - a for a, b in zip(hs, hs[1:]))) or 1
+    return steps
+
+
 def month_key(ts):
     return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m")
 
@@ -87,6 +107,14 @@ def write(name, payload, meta):
     print(f"  wrote {path}")
 
 
+# Bootstrap cost is iters x n. A sampled dataset (~2k blocks) can afford
+# 2000 iterations; a 200k-block dataset cannot — that is a billion
+# operations in pure Python. Cap total work and scale iterations down,
+# with a floor that still gives a usable interval.
+BOOTSTRAP_MAX_OPS = 8_000_000
+BOOTSTRAP_MIN_ITERS = 300
+
+
 def bootstrap_ci(values, step, iters=2000, conf=0.95):
     """95% CI for an extrapolated chain total from sampled blocks.
 
@@ -95,10 +123,14 @@ def bootstrap_ci(values, step, iters=2000, conf=0.95):
     (sampled sum x step) is a noisy estimator, so a point estimate on
     its own is not publishable. Resampling with replacement gives the
     spread directly, without assuming a distribution.
+
+    Only meaningful for SAMPLED data. A full scan needs no interval, and
+    callers skip this entirely when every month has step 1.
     """
     if not values:
         return [0, 0, 0]
     n = len(values)
+    iters = max(BOOTSTRAP_MIN_ITERS, min(iters, BOOTSTRAP_MAX_OPS // n))
     point = sum(values) * step
     totals = []
     for _ in range(iters):
@@ -117,6 +149,9 @@ def bootstrap_ci(values, step, iters=2000, conf=0.95):
 # comparable to trackers that count Ordinals alone — it is not a
 # correctness filter, and using it alone understates the total.
 ORD_PROTOCOLS = {"ord"}
+
+# How many recent blocks feed the tier threshold.
+TIER_WINDOW = 20_000
 
 
 def main():
@@ -145,6 +180,8 @@ def main():
     if not wb and not ob:
         raise SystemExit("No datasets found in data/. Run the builders first.")
 
+    w_env = {r["height"]: r["envelope_bytes"] for r in wb} if wb else {}
+
     datasets = {}
     if wb:
         wb.sort(key=lambda r: r["height"])
@@ -167,8 +204,107 @@ def main():
                            month_key(ob[-1]["block_time"])],
         }
 
+    # ---- display tiers for the live portal ------------------------------
+    # "Clean" blocks are effectively extinct: routine protocol traffic
+    # (Runes, bridge memos, commitments) puts data in nearly every block.
+    # A two-colour scheme therefore paints everything the same. The
+    # BASELINE tier separates that routine floor from blocks genuinely
+    # carrying stored content, using the 10th percentile of recent blocks
+    # rather than a number picked by hand.
+    #
+    # FROZEN at export time on purpose. A threshold that floats per-render
+    # would silently change what a colour means, breaking comparison
+    # across time. It updates when you re-export, and the page states the
+    # window it came from.
+    tiers = None
+    if ob and wb:
+        wsize = {r["height"]: r["block_size"] for r in wb}
+        # Walk the most recent heights that exist in BOTH datasets. Taking
+        # the last N OP_RETURN rows would find nothing while the witness
+        # scan trails behind — the threshold would silently vanish and the
+        # BASELINE tier would never render.
+        joined = [r for r in ob if r["height"] in wsize][-TIER_WINDOW:]
+        # BEYOND-BASELINE share: inscription envelopes (never sanctioned)
+        # plus OP_RETURN bytes past the pre-v30 allowance. Ordinary small
+        # OP_RETURNs are excluded — that channel was deliberately created
+        # in 2014, so counting it would measure the settlement rather than
+        # the departure from it.
+        shares = [
+            (r["excess_bytes"] + w_env.get(r["height"], 0)) / wsize[r["height"]]
+            for r in joined if wsize[r["height"]]
+        ]
+        if len(shares) >= 100:
+            ordered = sorted(shares)
+
+            def pct(p):
+                return round(ordered[min(len(ordered) - 1,
+                                         int(len(ordered) * p / 100))], 5)
+
+            # Quartiles, not a floor. A 10th-percentile threshold put 90%
+            # of blocks in one bucket, which answered "is this block
+            # unusually quiet?" — the wrong question. The median pivot
+            # answers "is this block better or worse than what is now
+            # normal?", and makes the normal itself the finding.
+            tiers = {
+                "p25": pct(25), "median": pct(50),
+                "p75": pct(75), "p95": pct(95),
+                "baseline_share": pct(50),
+                "window_blocks": len(shares),
+                "derived_from": [month_key(joined[0]["block_time"]),
+                                 month_key(joined[-1]["block_time"])],
+            }
+
+    # ---- last data-free block ------------------------------------------
+    # A block with at least one transaction and zero non-monetary bytes.
+    # Empty blocks (no txs) are excluded: they are mined before validation
+    # completes and are pure by accident, not by demand.
+    last_clean = None
+    if ob and wb:
+        wenv = {r["height"]: r["envelope_bytes"] for r in wb}
+        for r in reversed(ob):
+            h = r["height"]
+            if h not in wenv:
+                continue
+            if r["excess_bytes"] == 0 and wenv[h] == 0 and r["tx_count"] > 0:
+                last_clean = {"height": h, "time": r["block_time"],
+                              "tx_count": r["tx_count"]}
+                break
+        joined_end = max((r["height"] for r in ob if r["height"] in wenv),
+                         default=0)
+
+        # Yearly rate of data-free blocks. Empty blocks are excluded on
+        # both sides of the ratio, so the trend reflects demand for clean
+        # blockspace rather than variation in how often pools mine empty.
+        by_year = defaultdict(lambda: {"n": 0, "clean": 0})
+        for r in ob:
+            h = r["height"]
+            if h not in wenv or r["tx_count"] == 0:
+                continue
+            y = datetime.fromtimestamp(r["block_time"], timezone.utc).year
+            d = by_year[y]
+            d["n"] += 1
+            if r["excess_bytes"] == 0 and wenv[h] == 0:
+                d["clean"] += 1
+        years = [{"year": y,
+                  "blocks": v["n"],
+                  "clean": v["clean"],
+                  "pct": round(v["clean"] / v["n"] * 100, 4)}
+                 for y, v in sorted(by_year.items()) if v["n"] >= 500]
+
+        last_clean = {"block": last_clean, "coverage_end": joined_end,
+                      "by_year": years,
+                      "unmeasured_above": max(0, max(wenv, default=0) and
+                                              ob[-1]["height"] - joined_end)}
+
     meta = {"generated_at": generated_at, "datasets": datasets,
-            "events": EVENTS}
+            "events": EVENTS, "tiers": tiers, "last_clean": last_clean,
+            "measures": {
+                "pile": "all non-monetary bytes a node must store "
+                        "(inscription envelopes + all OP_RETURN)",
+                "beyond": "only what post-2022 policy changes enabled: "
+                          "inscription envelopes + OP_RETURN beyond the "
+                          "pre-v30 allowance of one output at 83 bytes",
+            }}
     write("meta.json", {}, meta)
 
     # ---- block tape: one entry per sampled witness block ----------------
@@ -201,6 +337,7 @@ def main():
 
     if wb:
         step = datasets["witness"]["step"]
+        w_steps_m = monthly_steps(wb, step)
         months = sorted(w_monthly)
         write("witness_monthly.json", {
             "months": months,
@@ -211,11 +348,12 @@ def main():
             "content_mb_sampled": [
                 round(w_monthly[m]["content_bytes"] / 1e6, 3) for m in months],
             "envelope_mb_est": [
-                round(w_monthly[m]["envelope_bytes"] * step / 1e6, 1)
+                round(w_monthly[m]["envelope_bytes"] * w_steps_m[m] / 1e6, 1)
                 for m in months],
             "envelopes_sampled": [
                 w_monthly[m]["envelope_count"] for m in months],
-            "estimated": True, "step": step,
+            "estimated": any(v > 1 for v in w_steps_m.values()),
+            "step": step, "monthly_steps": w_steps_m,
         }, meta)
 
     # ---- monthly OP_RETURN aggregates ------------------------------------
@@ -229,18 +367,20 @@ def main():
 
     if ob:
         step = datasets["opreturn"]["step"]
+        o_steps_m = monthly_steps(ob, step)
         months = sorted(o_monthly)
         write("opreturn_monthly.json", {
             "months": months,
             "or_kb_est": [
-                round(o_monthly[m]["or_bytes"] * step / 1e3, 1)
+                round(o_monthly[m]["or_bytes"] * o_steps_m[m] / 1e3, 1)
                 for m in months],
             "excess_kb_est": [
-                round(o_monthly[m]["excess_bytes"] * step / 1e3, 2)
+                round(o_monthly[m]["excess_bytes"] * o_steps_m[m] / 1e3, 2)
                 for m in months],
             "nonstandard_txs_sampled": [
                 o_monthly[m]["nonstandard_txs"] for m in months],
-            "estimated": True, "step": step,
+            "estimated": any(v > 1 for v in o_steps_m.values()),
+            "step": step, "monthly_steps": o_steps_m,
         }, meta)
 
     # ---- the cumulative chart -------------------------------------------
@@ -256,6 +396,8 @@ def main():
     if all_months:
         w_step = datasets.get("witness", {}).get("step", 1)
         o_step = datasets.get("opreturn", {}).get("step", 1)
+        w_steps = monthly_steps(wb, w_step) if wb else {}
+        o_steps = monthly_steps(ob, o_step) if ob else {}
 
         series = {k: [] for k in (
             "witness_content_mb", "witness_envelope_mb",
@@ -263,11 +405,13 @@ def main():
             "opreturn_mb")}
         run = defaultdict(float)
         for m in all_months:
-            run["wc"] += w_monthly[m]["content_bytes"] * w_step / 1e6
-            run["we"] += w_monthly[m]["envelope_bytes"] * w_step / 1e6
-            run["wo"] += ord_monthly[m]["ord_content"] * w_step / 1e6
-            run["wx"] += ord_monthly[m]["other_content"] * w_step / 1e6
-            run["or"] += o_monthly[m]["or_bytes"] * o_step / 1e6
+            ws = w_steps.get(m, w_step)
+            os_ = o_steps.get(m, o_step)
+            run["wc"] += w_monthly[m]["content_bytes"] * ws / 1e6
+            run["we"] += w_monthly[m]["envelope_bytes"] * ws / 1e6
+            run["wo"] += ord_monthly[m]["ord_content"] * ws / 1e6
+            run["wx"] += ord_monthly[m]["other_content"] * ws / 1e6
+            run["or"] += o_monthly[m]["or_bytes"] * os_ / 1e6
             series["witness_content_mb"].append(round(run["wc"], 1))
             series["witness_envelope_mb"].append(round(run["we"], 1))
             series["witness_content_ord_mb"].append(round(run["wo"], 1))
@@ -290,20 +434,27 @@ def main():
                       f"rebuild both from the same range before trusting "
                       f"the ORD ONLY view.")
 
+        # Every month at step 1 means every block was parsed: the totals
+        # are counts, not estimates, and a confidence interval would be
+        # both meaningless and (at full-scan size) very slow to compute.
+        exact = (all(v == 1 for v in w_steps.values()) if w_steps else True) \
+            and (all(v == 1 for v in o_steps.values()) if o_steps else True)
         ci = {}
-        if wb:
-            ci["witness_content_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
-                [r["content_bytes"] for r in wb], w_step)]
-            ci["witness_envelope_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
-                [r["envelope_bytes"] for r in wb], w_step)]
-        if ob:
-            ci["opreturn_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
-                [r["or_bytes"] for r in ob], o_step)]
+        if not exact:
+            print("  sampled data present — computing confidence intervals")
+            if wb:
+                ci["witness_content_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
+                    [r["content_bytes"] for r in wb], w_step)]
+                ci["witness_envelope_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
+                    [r["envelope_bytes"] for r in wb], w_step)]
+            if ob:
+                ci["opreturn_mb"] = [round(v / 1e6, 1) for v in bootstrap_ci(
+                    [r["or_bytes"] for r in ob], o_step)]
 
         write("cumulative.json", {
             "months": all_months,
             **series,
-            "estimated": True,
+            "estimated": not exact,
             "ci95": ci,
             "coverage": {
                 "witness": datasets.get("witness", {}).get("date_range"),

@@ -27,7 +27,7 @@ from witness_classifier import (classify_tx_witness, envelope_spans,
 from opreturn_classifier import classify_tx as classify_opreturn
 
 POLL_SECONDS = 5
-WINDOW = 12          # blocks shown in the visual row
+WINDOW = 40          # blocks in the draggable row (~7h of chain)
 BACKFILL = 24        # blocks classified on first-ever startup (~a minute)
 HISTORY_KEEP = 4320  # ~30 days of blocks kept in the history file
 OUTFILE = os.path.join("dashboard", "data", "live.json")
@@ -66,7 +66,7 @@ _URL = _re.compile(r"https?://\S+|www\.\S+", _re.I)
 # a long hex or base58 run, or "to:/from:TICKER" forms. Bump this version
 # whenever the filters change: history blocks stamped with an older
 # version get re-filtered on the next poller start.
-GRAFFITI_VERSION = 3
+GRAFFITI_VERSION = 4   # bumped: blocks now also carry beyond_bytes
 _MACHINE = [
     _re.compile(r"0x[0-9a-fA-F]{16,}"),                  # EVM address/hash
     _re.compile(r"[1-9A-HJ-NP-Za-km-z]{26,}"),           # base58 run (BTC/TRON/etc)
@@ -226,6 +226,7 @@ def classify_block(height):
 
     envelope = 0
     or_bytes = 0
+    or_excess = 0
     families = {}
     graffiti = []
 
@@ -243,10 +244,25 @@ def classify_block(height):
         o = classify_opreturn(tx)
         if o:
             or_bytes += o["total_bytes"]
+            or_excess += o["excess_bytes"]
 
     size = block.get("size", 0)
-    data_bytes = envelope + or_bytes
     top_family = max(families, key=families.get) if families else ""
+
+    # TWO MEASURES, answering two different questions.
+    #
+    # data_bytes — every non-monetary byte a node must store. Feeds the
+    #   odometer and the cumulative pile.
+    #
+    # beyond_bytes — only what post-2022 policy changes ENABLED:
+    #   inscription envelopes (never sanctioned at any size) plus
+    #   OP_RETURN bytes past the pre-v30 allowance of one output at 83
+    #   bytes. Ordinary small OP_RETURNs are excluded: that channel was
+    #   deliberately created and sized in 2014, so counting it against
+    #   the policy changes would be measuring the settlement, not the
+    #   departure from it. Feeds the tiers and the pure-block clock.
+    data_bytes = envelope + or_bytes
+    beyond_bytes = envelope + or_excess
 
     return {
         "miner": miner_from_coinbase(block),
@@ -257,8 +273,11 @@ def classify_block(height):
         "block_size": size,
         "envelope_bytes": envelope,
         "opreturn_bytes": or_bytes,
+        "opreturn_excess_bytes": or_excess,
         "data_bytes": data_bytes,
         "data_share": round(data_bytes / size, 5) if size else 0,
+        "beyond_bytes": beyond_bytes,
+        "beyond_share": round(beyond_bytes / size, 5) if size else 0,
         "top_family": top_family,
         "graffiti": graffiti,
         "graffiti_v": GRAFFITI_VERSION,
@@ -272,7 +291,8 @@ def upgrade_history_graffiti(history):
     only — much lighter than the full classify)."""
     missing = sorted(
         (b for b in history.values()
-         if b.get("graffiti_v") != GRAFFITI_VERSION),
+         if b.get("graffiti_v") != GRAFFITI_VERSION
+         or "beyond_bytes" not in b),
         key=lambda b: -b["height"])[:144]
     if not missing:
         return False
@@ -280,6 +300,10 @@ def upgrade_history_graffiti(history):
           f"(filter v{GRAFFITI_VERSION})...")
     for b in missing:
         try:
+            if "beyond_bytes" not in b:
+                # needs the full witness accounting, not just vouts
+                history[b["height"]] = classify_block(b["height"])
+                continue
             blk = rpc("getblock", [b["hash"], 2])
             g = []
             for tx in blk["tx"][1:]:
@@ -312,11 +336,27 @@ def load_history():
 
 
 def save_history(history):
+    """Returns True if the file was written. History accumulates, so a
+    failed write is retried by the caller until it lands — unlike
+    live.json, where the next heartbeat carries everything anyway."""
     blocks = sorted(history.values(), key=lambda b: -b["height"])[:HISTORY_KEEP]
-    tmp = HISTORY + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(blocks, f)
-    os.replace(tmp, HISTORY)
+    return write_atomic(blocks, HISTORY)
+
+
+def pure_stats(history):
+    """How many blocks in history carried zero non-monetary bytes, and
+    when the last one was. In 2026 the answer is usually 'none' — which
+    is the finding, not a bug."""
+    if not history:
+        return None
+    blocks = sorted(history.values(), key=lambda b: -b["height"])
+    pure = [b for b in blocks if b.get("beyond_bytes", b["data_bytes"]) == 0]
+    return {
+        "scanned": len(blocks),
+        "pure_count": len(pure),
+        "last_pure_height": pure[0]["height"] if pure else None,
+        "last_pure_time": pure[0]["time"] if pure else None,
+    }
 
 
 def day_stats(history):
@@ -335,11 +375,34 @@ def day_stats(history):
     }
 
 
-def write_atomic(payload):
-    tmp = OUTFILE + ".tmp"
+def write_atomic(payload, path=None):
+    """Write via temp file + rename so readers never see a partial file.
+
+    On Windows the rename fails with PermissionError if anything else has
+    the destination open — python's http.server serving the file, a
+    browser fetching it, or antivirus mid-scan. These locks last
+    milliseconds, so retry briefly rather than crashing a poller that is
+    meant to run for weeks.
+    """
+    path = path or OUTFILE
+    tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f)
-    os.replace(tmp, OUTFILE)
+    for attempt in range(8):
+        try:
+            os.replace(tmp, path)
+            return True
+        except PermissionError:
+            if attempt == 7:
+                print(f"  note: {os.path.basename(path)} locked by another "
+                      f"process; will retry on the next cycle")
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                return False
+            time.sleep(0.25 * (attempt + 1))
+    return False
 
 
 def chain_bytes():
@@ -373,6 +436,7 @@ def emit(history, tip, mempool=None):
         "mempool": mempool,
         "chain_bytes": chain_bytes(),
         "day": day_stats(history),
+        "pure": pure_stats(history),
         "blocks": blocks[:WINDOW],
     })
 
@@ -396,6 +460,7 @@ def main():
                   f"{history[h]['miner']}")
         save_history(history)
     emit(history, tip, mempool_snapshot())
+    history_dirty = False
     print(f"Watching for new blocks every {POLL_SECONDS}s. Ctrl+C to stop.\n")
 
     while True:
@@ -413,10 +478,17 @@ def main():
                 print(f"NEW BLOCK {h:,}  {b['miner']}  "
                       f"{b['tx_count']:,} txs  "
                       f"data {b['data_bytes']:,}B "
-                      f"({b['data_share'] * 100:.2f}%)"
-                      f"{'  <- pure monetary' if b['data_bytes'] == 0 else ''}")
+                      f"beyond {b['beyond_bytes']:,}B "
+                      f"({b['beyond_share'] * 100:.2f}%)"
+                      f"{'  <- PURE' if b['beyond_bytes'] == 0 else ''}")
             tip = new_tip
-            save_history(history)
+            history_dirty = True
+
+        # A history write that lost a lock race stays pending rather than
+        # being dropped: the in-memory copy is authoritative and gets
+        # flushed on a later cycle.
+        if history_dirty and save_history(history):
+            history_dirty = False
         # heartbeat every cycle so the page can detect a dead poller;
         # mempool snapshot rides along and drives the portal's agitation
         emit(history, tip, mempool_snapshot())
