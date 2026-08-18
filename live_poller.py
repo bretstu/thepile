@@ -20,6 +20,7 @@ import json
 import os
 import time
 
+import r2
 from rpc import rpc, CLIENT
 from witness_classifier import classify_tx_witness
 from opreturn_classifier import classify_tx as classify_opreturn
@@ -311,6 +312,8 @@ def main():
                   f"{history[h]['miner']}")
         save_history(history)
     emit(history, tip, mempool_snapshot())
+    print(r2.describe())
+    r2.publish(OUTFILE, HISTORY, force=True)
     history_dirty = False
     print(f"Watching for new blocks every {POLL_SECONDS}s. Ctrl+C to stop.\n")
 
@@ -322,7 +325,8 @@ def main():
             print(f"  node unreachable ({e}); retrying")
             continue
 
-        if new_tip > tip:
+        new_block = new_tip > tip
+        if new_block:
             for h in range(tip + 1, new_tip + 1):
                 b = classify_block(h)
                 history[h] = b
@@ -343,6 +347,12 @@ def main():
         # heartbeat every cycle so the page can detect a dead poller;
         # mempool snapshot rides along and drives the portal's agitation
         emit(history, tip, mempool_snapshot())
+
+        # Publishing is throttled internally: a new block goes out at
+        # once, and the intervening heartbeats are batched, because
+        # between blocks the only thing that changes is the timestamp
+        # proving the poller is alive.
+        r2.publish(OUTFILE, HISTORY, force=new_block)
 
 
 if __name__ == "__main__":

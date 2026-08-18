@@ -429,6 +429,22 @@
 </main>
 
 <script>
+// WHERE THE DATA COMES FROM.
+//
+// Two origins, because the two kinds of file have different lifecycles.
+// The slow files (cumulative, monthlies) ship WITH the site: they are in
+// the repo, deploy with it, and change only when the chain is re-scanned.
+// The live pair is written every block by a poller on a home network and
+// pushed to object storage, so it cannot live in the repo without a
+// commit per block.
+//
+// LIVE_BASE empty = same-origin, which is what happens when you open this
+// file locally or run it against a local poller. Set it to the R2 host in
+// production. Nothing else in the page knows the difference.
+const LIVE_BASE = location.hostname.endsWith('thepile.space')
+  ? 'https://data.thepile.space'
+  : '';
+
 const $ = id => document.getElementById(id);
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const lerp = (a,b,t)=>a+(b-a)*t;
@@ -650,7 +666,7 @@ let histWarned = false;
 async function setOdoTarget(){
   let hist = [];
   try{
-    const r = await fetch('data/live_history.json?t='+Date.now());
+    const r = await fetch(LIVE_BASE + '/data/live_history.json?t='+Date.now());
     if(r.ok) hist = await r.json();
   }catch(e){}
   if(!hist.length) return;
@@ -855,7 +871,7 @@ function setPressure(mem){
 async function poll(){
   let d;
   try{
-    const r = await fetch('data/live.json?t='+Date.now());
+    const r = await fetch(LIVE_BASE + '/data/live.json?t='+Date.now());
     if(!r.ok) throw 0;
     d = await r.json();
   }catch(e){ $('stale').style.display='inline-block'; return; }
