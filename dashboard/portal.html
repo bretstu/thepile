@@ -329,21 +329,6 @@
   .chartfoot{font-size:12px;color:var(--slate);text-align:center;margin-top:8px;
              letter-spacing:.04em}
   .chartfoot b{color:var(--parchment);font-weight:500}
-  #wire{margin-top:44px}
-  #wirefeed{max-width:860px;margin:16px auto 0;display:flex;flex-direction:column;gap:10px}
-  .msg{display:flex;gap:14px;align-items:baseline;font-size:13px;line-height:1.5;
-       padding:9px 14px;background:var(--panel);border:1px solid var(--line);
-       border-radius:4px}
-  .msg .bh{flex:0 0 auto;font-size:11px;color:var(--teal)}
-  .msg .src{flex:0 0 auto;font-size:9px;letter-spacing:.1em;padding:2px 7px;
-            border-radius:3px;border:1px solid var(--line);color:var(--slate)}
-  .msg .src.ord{color:var(--amber);border-color:rgba(224,159,62,.45)}
-  .msg .tx{color:var(--parchment);overflow-wrap:anywhere}
-  .msg.fresh{animation:msgIn .7s ease-out}
-  @keyframes msgIn{0%{opacity:0;transform:translateY(-8px);
-    background:rgba(224,159,62,.12)}100%{opacity:1}}
-  .wirefoot{font-size:11px;color:var(--slate);text-align:center;margin-top:12px;
-            letter-spacing:.04em}
   .legend{margin-top:20px;font-size:13px;color:var(--slate);max-width:90ch;line-height:1.7}
   .legend b{color:var(--parchment);font-weight:500}
   /* --- breakpoints ------------------------------------------------- */
@@ -436,12 +421,6 @@
     <div class="chartfoot" id="pilefoot"></div>
   </section>
 
-  <section id="wire">
-    <div class="chartlabel">THE GRAFFITI WIRE · HUMAN TEXT FOUND ON THE CHAIN, LIVE</div>
-    <div id="wirefeed"></div>
-    <div class="wirefoot">text-only by design — this feed cannot render images, links, or markup ·
-      protocol payloads filtered out</div>
-  </section>
 
   <p class="legend">Ordinary OP_RETURNs under 83 bytes are excluded from the block
     grading above: that channel was deliberately created in 2014, so counting it
@@ -675,7 +654,6 @@ async function setOdoTarget(){
     if(r.ok) hist = await r.json();
   }catch(e){}
   if(!hist.length) return;
-  renderWire(hist);
 
   const oldestLive = Math.min(...hist.map(b=>b.height));
   if(odoGate > 0 && oldestLive > odoGate + 1 && !histWarned){
@@ -934,65 +912,6 @@ async function poll(){
       `<span><span class="k">${full ? 'ARRIVED IN THE LAST 24 HOURS' : `ARRIVED IN ${d.day.hours} H · BUILDING TO 24`}</span><b>+${fmtBytes(d.day.data_bytes)}</b></span>`+
       `<span><span class="k">AT THAT RATE, EVERY YEAR</span><b>${(perDay*365/1e9).toFixed(1)} GB</b></span>`+
       `<span><span class="k">SHARE OF EVERYTHING A NODE STORES</span><b>${chainPct === null ? '—' : chainPct.toFixed(1) + '%'}</b></span>`;
-  }
-}
-
-// ---- graffiti wire -----------------------------------------------------
-// SECURITY: message text is inserted via textContent exclusively, so any
-// markup in a payload renders as inert characters. URLs were already
-// redacted at the poller. Nothing here can become an image or a link.
-const WIRE_MAX = 14;
-const seenMsgs = new Set();
-function renderWire(hist){
-  const feed = $('wirefeed');
-  const msgs = [];
-  for(const b of hist.slice().sort((a,x)=>x.height-a.height)){
-    for(const g of (b.graffiti||[])){
-      const text = typeof g === 'string' ? g : g.t;
-      const src  = typeof g === 'string' ? 'op' : g.s;
-      const key = b.height + '|' + src + '|' + text;
-      msgs.push({h:b.height, text, src, key});
-      if(msgs.length >= WIRE_MAX) break;
-    }
-    if(msgs.length >= WIRE_MAX) break;
-  }
-  if(!msgs.length){
-    // say WHY it's empty: pre-wire history vs. genuinely quiet chain
-    const withKey = hist.filter(b => Array.isArray(b.graffiti)).length;
-    let note;
-    if(withKey === 0){
-      note = 'history predates the wire — restart the poller and it will backfill automatically';
-    } else {
-      note = `no legible human text in the last ${withKey.toLocaleString()} blocks — ` +
-             `genuine messages are rare (a handful per day); the wire fills as they land`;
-    }
-    if(!feed.querySelector('.wirefoot')){
-      const d = document.createElement('div');
-      d.className = 'wirefoot';
-      feed.appendChild(d);
-    }
-    feed.querySelector('.wirefoot').textContent = note;
-    return;
-  }
-  const ph = feed.querySelector('.wirefoot');
-  if(ph) ph.remove();
-  for(const m of msgs.slice().reverse()){
-    if(seenMsgs.has(m.key)) continue;
-    seenMsgs.add(m.key);
-    const row = document.createElement('div');
-    row.className = seenMsgs.size > WIRE_MAX ? 'msg fresh' : 'msg';
-    const bh = document.createElement('span');
-    bh.className = 'bh';
-    bh.textContent = m.h.toLocaleString();
-    const src = document.createElement('span');
-    src.className = 'src ' + (m.src === 'ord' ? 'ord' : 'op');
-    src.textContent = m.src === 'ord' ? 'INSCRIBED' : 'OP_RETURN';
-    const tx = document.createElement('span');
-    tx.className = 'tx';
-    tx.textContent = m.text;          // textContent — never innerHTML
-    row.append(bh, src, tx);
-    feed.prepend(row);
-    while(feed.children.length > WIRE_MAX) feed.lastChild.remove();
   }
 }
 

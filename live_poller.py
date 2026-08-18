@@ -21,9 +21,7 @@ import os
 import time
 
 from rpc import rpc, CLIENT
-from witness_classifier import (classify_tx_witness, envelope_spans,
-                                parse_envelope, tokenize, _is_push,
-                                _push_value)
+from witness_classifier import classify_tx_witness
 from opreturn_classifier import classify_tx as classify_opreturn
 
 POLL_SECONDS = 5
@@ -46,162 +44,11 @@ POOL_TAGS = [
 ]
 
 
-# ---- the graffiti wire -------------------------------------------------
-# Human-readable OP_RETURN text, defensively filtered. Text-only by
-# construction: this reads OP_RETURN pushes exclusively — image data
-# lives in witness envelopes, which this code never touches.
-GRAFFITI_MIN_LEN = 8          # shorter is protocol noise
-GRAFFITI_MAX_LEN = 200        # truncate long rants
-GRAFFITI_PER_BLOCK = 8
-# messages containing any of these are dropped entirely (case-insensitive)
-BLOCKLIST = ["nigger", "faggot", "kike", "spic", "chink"]
-# protocol payloads that read as text but aren't human graffiti
-PROTOCOL_PREFIXES = (b"=:", b"SWAP:", b"OUT:", b"REFUND:", b"omni",
-                     b"CNTRPRTY", b"RSKBLOCK:", b"ion:", b"DC-L5:")
-import re as _re
-_URL = _re.compile(r"https?://\S+|www\.\S+", _re.I)
-
-# Machine text detection: bridge/swap memos and commitments are ASCII but
-# not human writing. The signature is crypto addresses and routing verbs —
-# a long hex or base58 run, or "to:/from:TICKER" forms. Bump this version
-# whenever the filters change: history blocks stamped with an older
-# version get re-filtered on the next poller start.
-GRAFFITI_VERSION = 4   # bumped: blocks now also carry beyond_bytes
-_MACHINE = [
-    _re.compile(r"0x[0-9a-fA-F]{16,}"),                  # EVM address/hash
-    _re.compile(r"[1-9A-HJ-NP-Za-km-z]{26,}"),           # base58 run (BTC/TRON/etc)
-    _re.compile(r"\bbc1[a-z0-9]{20,}", _re.I),          # bech32
-    _re.compile(r"\b(?:to|from|refund|out|memo|migrate|swap|bridge)\s*:", _re.I),
-]
-
-
-def looks_machine(text):
-    return any(rx.search(text) for rx in _MACHINE)
-
-
-_WORD = _re.compile(r"[A-Za-z]{2,}")
-_OKCHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-               "0123456789 .,!?'\"-:;()@#&/\n")
-
-
-def human_text(payload: bytes):
-    """The shared gauntlet: returns display-ready text, or None.
-
-    v3 is structural rather than enumerative — instead of blocklisting
-    every protocol tag (SYMB:, MTLD_, lifi, ...), require the *shape* of
-    natural language: multiple real words, mostly letters, ordinary
-    punctuation. Protocol tags fail on shape, whatever they're called.
-    """
-    if len(payload) < GRAFFITI_MIN_LEN:
-        return None
-    if payload.startswith(PROTOCOL_PREFIXES):
-        return None
-    try:
-        text = payload.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-    printable = sum(1 for c in text if c.isprintable() or c in "\n\t")
-    if printable / len(text) < 0.9:
-        return None
-    text = " ".join(text.split())
-    text = _URL.sub("[link]", text)
-    if not text:
-        return None
-    # natural-language shape
-    if " " not in text or len(_WORD.findall(text)) < 2:
-        return None
-    letters = sum(1 for c in text if c.isalpha())
-    if letters / len(text) < 0.55:
-        return None
-    weird = sum(1 for c in text if c not in _OKCHARS)
-    if weird / len(text) > 0.08:
-        return None
-    low = text.lower()
-    if any(w in low for w in BLOCKLIST):
-        return None
-    if looks_machine(text):
-        return None
-    return text[:GRAFFITI_MAX_LEN]
-
-
-def _script_pushes(script_hex):
-    """Data pushes from an OP_RETURN script (after the 0x6a)."""
-    try:
-        b = bytes.fromhex(script_hex)
-    except ValueError:
-        return []
-    if not b or b[0] != 0x6A:
-        return []
-    out, i = [], 1
-    while i < len(b):
-        op = b[i]; i += 1
-        if 1 <= op <= 0x4B:
-            n = op
-        elif op == 0x4C and i < len(b):
-            n = b[i]; i += 1
-        elif op == 0x4D and i + 1 < len(b):
-            n = int.from_bytes(b[i:i+2], "little"); i += 2
-        elif op == 0x4E and i + 3 < len(b):
-            n = int.from_bytes(b[i:i+4], "little"); i += 4
-        else:
-            continue  # non-push opcode (OP_13 for runes, etc.) — skip it
-        out.append(b[i:i+n]); i += n
-    return out
-
-
-def extract_graffiti(tx):
-    """Human text from a tx's OP_RETURN outputs: [{'s':'op','t':text}]."""
-    found = []
-    for vout in tx.get("vout", []):
-        h = vout.get("scriptPubKey", {}).get("hex", "")
-        if not h.startswith("6a") or h.startswith("6a5d"):   # skip runes
-            continue
-        text = human_text(b"".join(_script_pushes(h)))
-        if text:
-            found.append({"s": "op", "t": text})
-            if len(found) >= GRAFFITI_PER_BLOCK:
-                break
-    return found
-
-
-MAX_INSCRIBED_TEXT = 400   # only small text/plain inscriptions
-
-
-def extract_inscribed(tx):
-    """Human text from text/plain inscription envelopes:
-    [{'s':'ord','t':text}]. JSON bodies (BRC-20 mints etc.) are machine
-    payloads and are skipped before the shared gauntlet even runs."""
-    found = []
-    for vin in tx.get("vin", []):
-        for el in vin.get("txinwitness") or []:
-            try:
-                script = bytes.fromhex(el)
-            except ValueError:
-                continue
-            for span in envelope_spans(script):
-                meta = parse_envelope(script, span)
-                ct = meta["content_type"].lower().split(";")[0].strip()
-                if ct != "text/plain" and ct != "text/plain;charset=utf-8":
-                    if not ct.startswith("text/plain"):
-                        continue
-                if not (0 < meta["content_bytes"] <= MAX_INSCRIBED_TEXT):
-                    continue
-                # reassemble the body: pushes after the empty separator
-                inner = script[span[0] + 2:span[1] - 1]
-                toks = list(tokenize(inner))
-                body = b""
-                for k, t in enumerate(toks):
-                    if _is_push(t[1]) and _push_value(t[1], t[2]) == b"":
-                        body = b"".join(x[2] for x in toks[k + 1:])
-                        break
-                if body.lstrip()[:1] in (b"{", b"["):   # JSON = machine
-                    continue
-                text = human_text(body)
-                if text:
-                    found.append({"s": "ord", "t": text})
-                    if len(found) >= GRAFFITI_PER_BLOCK:
-                        return found
-    return found
+# This poller deliberately does NOT extract or store on-chain text. It
+# measures data; it does not republish it. Every string in live.json is
+# either computed here or drawn from POOL_TAGS below. Anything that
+# reintroduces free text from the chain reintroduces the liability of
+# publishing whatever a stranger paid to put there.
 
 
 def miner_from_coinbase(block):
@@ -228,12 +75,8 @@ def classify_block(height):
     or_bytes = 0
     or_excess = 0
     families = {}
-    graffiti = []
 
     for tx in txs:
-        if len(graffiti) < GRAFFITI_PER_BLOCK:
-            room = GRAFFITI_PER_BLOCK - len(graffiti)
-            graffiti.extend((extract_graffiti(tx) + extract_inscribed(tx))[:room])
         w = classify_tx_witness(tx)
         if w:
             envelope += w["envelope_bytes"]
@@ -279,47 +122,36 @@ def classify_block(height):
         "beyond_bytes": beyond_bytes,
         "beyond_share": round(beyond_bytes / size, 5) if size else 0,
         "top_family": top_family,
-        "graffiti": graffiti,
-        "graffiti_v": GRAFFITI_VERSION,
     }
 
 
-def upgrade_history_graffiti(history):
-    """History blocks written before the graffiti wire existed have no
-    'graffiti' key, so the wire shows nothing until 30 days roll over.
-    Backfill the most recent day's worth using verbosity-2 blocks (vout
-    only — much lighter than the full classify)."""
-    missing = sorted(
-        (b for b in history.values()
-         if b.get("graffiti_v") != GRAFFITI_VERSION
-         or "beyond_bytes" not in b),
-        key=lambda b: -b["height"])[:144]
-    if not missing:
-        return False
-    print(f"(Re)filtering graffiti for {len(missing)} blocks "
-          f"(filter v{GRAFFITI_VERSION})...")
-    for b in missing:
-        try:
-            if "beyond_bytes" not in b:
-                # needs the full witness accounting, not just vouts
+def upgrade_history(history):
+    """Bring old history rows up to the current schema.
+
+    Two jobs. First: strip any text left in files written before the wire
+    was removed — the history file is published, so stale rows would keep
+    serving that text for a month until they aged out. Second: backfill
+    beyond_bytes, which needs the full witness accounting and so costs a
+    reclassify per row.
+    """
+    scrubbed = 0
+    for b in history.values():
+        if b.pop("graffiti", None) is not None:
+            scrubbed += 1
+        b.pop("graffiti_v", None)
+    if scrubbed:
+        print(f"Scrubbed stored text from {scrubbed:,} history blocks.")
+
+    missing = sorted((b for b in history.values() if "beyond_bytes" not in b),
+                     key=lambda b: -b["height"])[:144]
+    if missing:
+        print(f"Backfilling beyond_bytes for {len(missing)} blocks...")
+        for b in missing:
+            try:
                 history[b["height"]] = classify_block(b["height"])
-                continue
-            blk = rpc("getblock", [b["hash"], 2])
-            g = []
-            for tx in blk["tx"][1:]:
-                if len(g) >= GRAFFITI_PER_BLOCK:
-                    break
-                room = GRAFFITI_PER_BLOCK - len(g)
-                g.extend((extract_graffiti(tx) + extract_inscribed(tx))[:room])
-            b["graffiti"] = g
-            b["graffiti_v"] = GRAFFITI_VERSION
-            if g:
-                print(f"  {b['height']:,}: {len(g)} message(s)")
-        except Exception as e:
-            print(f"  {b['height']:,}: skipped ({e})")
-            b["graffiti"] = []
-            b["graffiti_v"] = GRAFFITI_VERSION
-    return True
+            except Exception as e:
+                print(f"  {b['height']:,}: skipped ({e})")
+    return bool(scrubbed or missing)
 
 
 def load_history():
@@ -448,7 +280,7 @@ def main():
     print(f"Poller up. Client {CLIENT}, tip {tip:,}. "
           f"History: {len(history):,} blocks.")
 
-    if upgrade_history_graffiti(history):
+    if upgrade_history(history):
         save_history(history)
 
     need = [h for h in range(tip - BACKFILL + 1, tip + 1) if h not in history]
