@@ -54,6 +54,14 @@ BUCKET = os.getenv("R2_BUCKET", "")
 # a traffic spike from becoming a bill.
 CACHE_CONTROL = "public, max-age=20"
 
+# Object keys MIRROR the local path under dashboard/, so one URL path works
+# in both places: served locally the file is at /data/live.json, and in the
+# bucket the key is data/live.json. That is what lets the page treat the R2
+# host as a bare prefix (LIVE_BASE) instead of needing a second URL scheme
+# for production. Uploading to the bucket root instead would 404 in prod
+# while working perfectly on localhost — the worst kind of bug.
+KEY_PREFIX = "data/"
+
 # Heartbeats are 5s apart, but only the "poller is alive" timestamp moves
 # between blocks. Uploading that 12 times a minute would be 500k writes a
 # month to say nothing new.
@@ -102,7 +110,7 @@ def put(local_path, key=None):
     client = _get_client()
     if client is None:
         return False
-    key = key or os.path.basename(local_path)
+    key = key or KEY_PREFIX + os.path.basename(local_path)
     try:
         with open(local_path, "rb") as f:
             client.put_object(
