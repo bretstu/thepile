@@ -425,12 +425,16 @@
   .tiernote b{color:var(--text);font-weight:500}
   #odowrap{margin-top:34px;text-align:center;
            border-bottom:1px solid var(--line-2);padding:8px 0 30px}
+  /* Label, then value, then footnote. The caveat used to sit between the
+     label and the number, so a reader met a promise, then two lines of
+     qualification, then finally the figure the whole section exists to
+     report. A footnote goes after the thing it qualifies. */
   .odolabel{font-size:13px;color:var(--dim);letter-spacing:.18em}
-  .odosublabel{font-size:11px;color:var(--dim);opacity:.8;margin-top:6px;
+  .odosublabel{font-size:11px;color:var(--dim);opacity:.8;margin-top:14px;
                max-width:110ch;margin-left:auto;margin-right:auto;line-height:1.6}
   #odometer{font-family:var(--disp);font-weight:800;
             font-size:clamp(38px,6.5vw,76px);line-height:1.1;letter-spacing:1px;
-            font-variant-numeric:tabular-nums;margin-top:6px;
+            font-variant-numeric:tabular-nums;margin-top:10px;
             transition:color .3s}
   #odometer.lurch{color:var(--amber)}
   .odounit{font-size:.32em;color:var(--dim);letter-spacing:2px}
@@ -529,11 +533,11 @@
 
   <div id="odowrap">
     <div class="odolabel">EVERY NON-MONETARY BYTE A NODE MUST STORE</div>
+    <div id="odometer">—</div>
     <div class="odosublabel">every full node downloads, verifies and keeps all
       of it. Counted differently from the block grades below: this includes
       ordinary OP_RETURN, because storage does not care which rule let the
       bytes in.</div>
-    <div id="odometer">—</div>
     <div id="chainbarwrap">
       <div id="chaintitle"></div>
       <div id="chainbar"><div id="chainfill"></div></div>
@@ -973,12 +977,15 @@ function fmtShare(pct){
   return pct.toFixed(2).replace(/0$/, '');
 }
 
+// "1 IN 40 RECENT BLOCKS" reads two ways, and the wrong one is the more
+// natural: one clean block out of a set of forty, rather than a rate of
+// one in every forty. "EVERY" is the word that closes it — it cannot be
+// read as a count. The window and the date range move to the tooltip;
+// the label's job is the rate, not its provenance.
 function pureLabel(){
   const r = pureRarity();
   if(!r) return 'NOTHING BEYOND OLD LIMITS';
-  if(r.window) return `1 IN ${r.oneIn} RECENT BLOCKS`;
-  return r.current ? `1 IN ${r.oneIn} BLOCKS THIS YEAR`
-                   : `1 IN ${r.oneIn} BLOCKS IN ${r.year}`;
+  return `1 IN EVERY ${r.oneIn} BLOCKS`;
 }
 
 function blockEl(b, isNew){
@@ -1022,10 +1029,19 @@ function blockEl(b, isNew){
 
   if(pure && !isEmpty(b)){
     const r = pureRarity();
+    // The tooltip carries what the label cannot: the basis for the rate,
+    // and the frequency it works out to. A ratio sounds rarer than it
+    // feels — one in forty blocks is three or four a day — and a reader
+    // who checks should find that stated rather than discover it.
     if(r && r.window) el.querySelector('.sharelabel').title =
-      `1 in ${r.oneIn} of the last ${r.window.toLocaleString()} blocks carried `
-      + `nothing the old rules would have blocked`
-      + (r.months ? ` (${r.months[0]} – ${r.months[1]})` : '');
+      `One block in every ${r.oneIn} carries nothing the old rules would `
+      + `have blocked — about ${(144 / r.oneIn).toFixed(1)} a day.\n`
+      + `Measured over the last ${r.window.toLocaleString()} blocks`
+      + (r.months ? ` (${r.months[0]} – ${r.months[1]}).` : '.');
+    else if(r) el.querySelector('.sharelabel').title =
+      `One block in every ${r.oneIn} carries nothing the old rules would `
+      + `have blocked — about ${(144 / r.oneIn).toFixed(1)} a day`
+      + (r.year ? `, measured across ${r.year}.` : '.');
   }
 
   el.querySelector('.fill').title =
@@ -1293,10 +1309,18 @@ let pileChart = null;
 // to echarts.
 function chartTheme(){
   const v = getComputedStyle(document.documentElement);
-  const g = n => v.getPropertyValue(n).trim();
-  return {text:g('--text'), dim:g('--dim'), grid:g('--c-grid'),
-          axis:g('--c-axis'), tip:g('--c-tip'), line2:g('--line-2'),
-          s1:g('--c-series-1'), s2:g('--c-series-2')};
+  // A missing value must never reach echarts: it treats an empty colour as
+  // "inherit", which silently paints text in the series colour instead of
+  // failing visibly. Every getter has a floor.
+  const g = (n, fallback) => (v.getPropertyValue(n) || '').trim() || fallback;
+  return {text:  g('--text', '#191C22'),
+          dim:   g('--dim', '#5C626D'),
+          grid:  g('--c-grid', '#E4DFD2'),
+          axis:  g('--c-axis', '#C3BBA6'),
+          tip:   g('--c-tip', '#FDFCF8'),
+          line2: g('--line-2', '#C3BBA6'),
+          s1:    g('--c-series-1', '#A8433A'),
+          s2:    g('--c-series-2', '#D9945F')};
 }
 
 function themeChart(){
@@ -1309,7 +1333,10 @@ function themeChart(){
     legend:{textStyle:{color:t.dim}},
     xAxis:{axisLine:{lineStyle:{color:t.axis}}, axisLabel:{color:t.dim}},
     yAxis:{axisLabel:{color:t.dim}, splitLine:{lineStyle:{color:t.grid}}},
-    series:[{color:t.s1}, {color:t.s2}],
+    series:[{color:t.s1,
+             markLine:{label:{color:t.text},
+                       lineStyle:{color:t.axis}}},
+            {color:t.s2}],
   });
 }
 
@@ -1327,17 +1354,26 @@ function renderPile(){
     .filter(e=>months.includes(e.date.slice(0,7)) && SHORT[e.label]!==null);
   const n = months.length;
   const CT = chartTheme();
-  const marks = events.map((e,i)=>{
+  // Style the markLine ONCE, on the series, not per data item. Per-item
+  // label styling is unreliable in echarts — an unresolved property there
+  // silently falls back to inheriting the SERIES colour, which is how the
+  // event labels ended up rendering in salmon on a cream background.
+  // Per-item now carries only what genuinely differs: the text and which
+  // way it hangs off the line.
+  const marks = events.map(e => {
     const idx = months.indexOf(e.date.slice(0,7));
     return {
       xAxis: e.date.slice(0,7),
-      label:{formatter: SHORT[e.label]||e.label, color:CT.text,
-             fontFamily:"'IBM Plex Mono',monospace", fontSize:12, position:'end',
-             align: idx > n*0.88 ? 'right' : (idx < n*0.12 ? 'left' : 'center'),
-             padding:[7,0,0,0], fontWeight:500},
-      lineStyle:{color:CT.dim, type:'dashed', width:1}
+      label:{formatter: SHORT[e.label]||e.label,
+             align: idx > n*0.88 ? 'right' : (idx < n*0.12 ? 'left' : 'center')},
     };
   });
+  const markStyle = {
+    symbol:'none', silent:true,
+    label:{color:CT.text, fontFamily:"'IBM Plex Mono',monospace",
+           fontSize:12, fontWeight:500, position:'end', padding:[7,0,0,0]},
+    lineStyle:{color:CT.axis, type:'dashed', width:1},
+  };
   pileChart = echarts.init($('c_pile'));
   pileChart.setOption({
     backgroundColor:'transparent',
@@ -1358,7 +1394,7 @@ function renderPile(){
       {name:'Inscriptions', type:'line', stack:'pile',
        areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
        color:CT.s1, data:wGB,
-       markLine:{symbol:'none', silent:true, data:marks}},
+       markLine:{...markStyle, data:marks}},
       {name:'OP_RETURN', type:'line', stack:'pile',
        areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
        color:CT.s2, data:oGB},
