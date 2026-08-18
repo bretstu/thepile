@@ -79,7 +79,7 @@
     --bloom-blend:multiply; --bloom-op:.55;
     /* chart, read by JS via getComputedStyle */
     --c-grid:#E4DFD2; --c-axis:#C3BBA6; --c-tip:#FDFCF8;
-    --c-series-1:#A8433A; --c-series-2:#D9945F; --c-mark:rgba(245,242,234,.92);
+    --c-series-1:#A8433A; --c-series-2:#D9945F;
   }
 
   /* ---- DARK ---------------------------------------------------------
@@ -125,7 +125,7 @@
                     inset 0 0 14px rgba(232,227,213,.20);
     --bloom-blend:normal; --bloom-op:1;
     --c-grid:#1D2430; --c-axis:#1D2430; --c-tip:#11161F;
-    --c-series-1:#B44E46; --c-series-2:#E0937B; --c-mark:rgba(11,14,20,.85);
+    --c-series-1:#B44E46; --c-series-2:#E0937B;
   }
   *{box-sizing:border-box;margin:0}
   body{background:var(--bg);color:var(--text);font-family:var(--mono);
@@ -152,17 +152,22 @@
          padding:6px 12px;border-radius:3px;font-weight:500}
 
   /* counter */
-  #counterwrap{text-align:center;padding:26px 0 4px}
-  #counter{font-family:var(--disp);font-weight:800;
-           font-size:clamp(64px,11vw,140px);line-height:1;letter-spacing:2px;
-           font-variant-numeric:tabular-nums}
+  /* The ring's two legends, one above and one below it. Same size and
+     colour as each other on purpose: neither is the headline, they are the
+     two inputs that make the ring behave the way it does. */
+  .ptimer{position:absolute;bottom:100%;left:0;right:0;margin-bottom:11px;
+          text-align:center;white-space:nowrap;
+          font-size:clamp(9.5px,.74vw,11.5px);
+          color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+  .ptimer .k{opacity:.75;margin-left:5px}
+  #counter{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums;
+           font-size:clamp(15px,1.2vw,19px);letter-spacing:.04em}
   #counter.overdue{animation:overduePulse 2s ease-in-out infinite}
   @keyframes overduePulse{50%{color:var(--amber)}}
-  .counterlabel{font-size:11px;color:var(--dim);letter-spacing:.15em}
 
   /* stage */
   #stage{position:relative;margin-top:26px;display:flex;align-items:center;
-         gap:0;min-height:calc(var(--bw) * 1.75 + 60px)}
+         gap:0;min-height:calc(var(--bw) * 1.75 + 76px)}
 
   /* portal */
   /* Width and height are set independently, because tying both to one
@@ -179,10 +184,11 @@
      column would shift the mouth off the chain's centre line. Anchored
      by its top edge, so extra text grows downward into empty space
      instead of upward into the ellipse. */
-  .pgauge{position:absolute;top:100%;left:0;right:auto;margin-top:12px;
-        text-align:left;white-space:nowrap;
+  .pgauge{position:absolute;top:100%;left:0;right:0;margin-top:11px;
+        text-align:center;white-space:nowrap;
         font-size:clamp(9.5px,.74vw,11.5px);color:var(--dim);
         letter-spacing:.1em;text-transform:uppercase}
+  .pgauge .k{opacity:.75;margin-left:5px}
   .pgauge b{color:var(--text);font-weight:500}
   .pgauge .q{color:var(--amber)}
   #ring{position:relative;flex:0 0 auto;
@@ -386,8 +392,11 @@
   }
 
   /* odometer */
-  .measurelabel{font-size:11px;color:var(--dim);letter-spacing:.06em;
-                margin-top:22px;margin-bottom:6px}
+  /* Same treatment as .odosublabel: a centred caption belonging to the
+     heading above it, not a line of body text. */
+  .sectionsub{font-size:11px;color:var(--dim);opacity:.8;margin-top:6px;
+              max-width:104ch;margin-left:auto;margin-right:auto;
+              line-height:1.6;text-align:center}
   /* Same shape as .odolabel and .chartlabel — three sections, three
      headings that look alike. The rule above it is what marks the change
      of tense from history to present. */
@@ -395,7 +404,6 @@
                border-top:1px solid var(--line-2);
                font-size:13px;color:var(--dim);letter-spacing:.18em;
                text-align:center}
-  .measurelabel b{color:var(--text);font-weight:500}
   #cleanbar{display:flex;justify-content:space-between;align-items:baseline;
             gap:24px;flex-wrap:wrap;margin-top:14px;padding-top:12px;
             border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
@@ -419,7 +427,7 @@
            border-bottom:1px solid var(--line-2);padding:8px 0 30px}
   .odolabel{font-size:13px;color:var(--dim);letter-spacing:.18em}
   .odosublabel{font-size:11px;color:var(--dim);opacity:.8;margin-top:6px;
-               max-width:76ch;margin-left:auto;margin-right:auto;line-height:1.6}
+               max-width:110ch;margin-left:auto;margin-right:auto;line-height:1.6}
   #odometer{font-family:var(--disp);font-weight:800;
             font-size:clamp(38px,6.5vw,76px);line-height:1.1;letter-spacing:1px;
             font-variant-numeric:tabular-nums;margin-top:6px;
@@ -482,9 +490,9 @@
     #stage{flex-direction:column;align-items:stretch;min-height:0}
     #portal{width:auto;flex:0 0 auto;align-items:flex-start}
     #ring,#portal::after{display:none}
-    .pgauge{position:static;left:auto;right:auto;margin:0 0 10px;
-            text-align:left}
-    .pgauge .k{display:inline;margin-right:6px}
+    .pgauge,.ptimer{position:static;left:auto;right:auto;bottom:auto;
+            margin:0 0 8px;text-align:left}
+    .pgauge .k,.ptimer .k{margin-left:5px;margin-right:0}
     #row{padding-left:0;
          -webkit-mask-image:linear-gradient(90deg,#000 0,
                             #000 calc(100% - 48px),transparent 100%);
@@ -521,11 +529,10 @@
 
   <div id="odowrap">
     <div class="odolabel">EVERY NON-MONETARY BYTE A NODE MUST STORE</div>
-    <div class="odosublabel" title="Storage does not care which rule let the
-      bytes in, so this measure counts every non-monetary byte — including the
-      ordinary OP_RETURNs that the block grades deliberately exclude.">every
-      full node keeps all of it — ordinary OP_RETURN included, which is why
-      this is larger than the block grades below.</div>
+    <div class="odosublabel">every full node downloads, verifies and keeps all
+      of it. Counted differently from the block grades below: this includes
+      ordinary OP_RETURN, because storage does not care which rule let the
+      bytes in.</div>
     <div id="odometer">—</div>
     <div id="chainbarwrap">
       <div id="chaintitle"></div>
@@ -550,24 +557,17 @@
   <div class="sectionlead">AS IT HAPPENS · THE LATEST BLOCKS, LIVE FROM THE NODE</div>
 
 
-  <div id="counterwrap">
-    <div id="counter">—:—</div>
-    <div class="counterlabel">SINCE LAST BLOCK · TARGET ~10:00</div>
-  </div>
-
-
-  <div class="measurelabel" id="blockmeasure">
-    each block graded by how much of it is data the old rules would have
-    blocked — inscription envelopes, plus OP_RETURN beyond the old 83-byte
-    allowance
-  </div>
+  <div class="sectionsub" id="blockmeasure">each block graded by how much of it
+    is data the old rules would have blocked — inscription envelopes, plus
+    OP_RETURN beyond the old 83-byte allowance</div>
 
 
   <div id="stage">
     <div id="portal">
       <!-- caption sits under the aperture; the ring is the graphic -->
+      <div class="ptimer"><b id="counter">—:—</b><span class="k">SINCE LAST BLOCK</span></div>
       <div id="ring" title="The ring turns faster as the mempool fills and as the wait for the next block grows. It is a mood, not a measurement."><canvas id="vortex"></canvas></div>
-      <div class="pgauge" id="pgauge">MEMPOOL <b>—</b></div>
+      <div class="pgauge" id="pgauge"><b>—</b><span class="k">IN THE MEMPOOL</span></div>
     </div>
     <div id="row"></div>
   </div>
@@ -810,8 +810,8 @@ async function seedOdometer(){
                        ds.opreturn?.height_range?.[1] || 0);
     odoSeeded = true;
     $('odosub').innerHTML = CUM.estimated === false
-      ? `counted exactly through block <b>${odoGate.toLocaleString()}</b>, ` +
-        `plus every block since the feed started`
+      ? `every block parsed through <b>${odoGate.toLocaleString()}</b>, ` +
+        `live blocks counted since`
       : `estimated through block <b>${odoGate.toLocaleString()}</b>, ` +
         `counted exactly since`;
   }catch(e){
@@ -843,12 +843,18 @@ async function setOdoTarget(){
     histWarned = true;
     const missing = oldestLive - odoGate - 1;
     const stale = missing > 1500;          // ~10 days of chain
-    $('odosub').innerHTML =
-      `counted exactly through block <b>${odoGate.toLocaleString()}</b>, ` +
-      `plus every block since the feed started` +
-      (stale
-        ? ` · <span style="color:var(--brick)">${missing.toLocaleString()} blocks in between are not yet included</span>`
-        : ` · ${missing.toLocaleString()} blocks in between are not yet included`);
+    // At ordinary lag the gap is ~0.05% of the total — inside the rounding
+    // of the figure it sits under, so it belongs in the tooltip, not the
+    // caption. It earns the caption only once it could move the number.
+    const base = `every block parsed through <b>${odoGate.toLocaleString()}</b>, `
+               + `live blocks counted since`;
+    $('odosub').innerHTML = stale
+      ? base + ` · <span style="color:var(--brick)">${missing.toLocaleString()}`
+             + ` blocks in between are not yet counted</span>`
+      : base;
+    $('odosub').title =
+      `${missing.toLocaleString()} blocks between the last full scan and the `
+      + `live window are not yet counted, so the total above is a floor.`;
     if(stale) console.warn(
       `[the pile] ${missing.toLocaleString()} blocks uncounted — ` +
       `re-run the builders to a current height, then export.py`);
@@ -899,12 +905,34 @@ function beyondBytes(b){
 // by_year carries blocks and clean counts per year, so the ratio is a
 // measurement rather than a slogan. Recomputed on export, so it stays
 // true as the year goes on instead of ageing into a stale claim.
+// NOT live, and it does not need to be: this is a rate over 20,000 blocks,
+// so one more clean block moves 675/32,558 to 676/32,559 — still 1 in 48.
+// It takes about twenty before the displayed figure changes at all.
+//
+// The window is the trailing 20,000 blocks, the same one the tier bands
+// use. A calendar year was the wrong unit twice over: it resets each
+// January to a sample too thin to quote (100 blocks with 3 clean reads
+// "1 in 33"), and by December it is averaging across a regime change that
+// happened in February. A fixed trailing window has neither failure, and
+// sharing TIER_WINDOW means "recent" means one thing on this page.
+//
+// by_year is kept as a fallback for datasets exported before the window
+// existed, with a floor so a thin year is never quoted.
+const RARITY_MIN_BLOCKS = 4000;   // ~4 weeks of chain
+
 function pureRarity(){
-  const years = CUM?._meta?.last_clean?.by_year;
+  const lc = CUM?._meta?.last_clean;
+  const w = lc?.recent;
+  if(w && w.pct) return {oneIn: Math.round(100 / w.pct),
+                         window: w.window_blocks, months: w.months};
+
+  const years = lc?.by_year;
   if(!Array.isArray(years) || !years.length) return null;
-  const y = years[years.length - 1];
-  if(!y || !y.pct) return null;
-  return {year: y.year, oneIn: Math.round(100 / y.pct)};
+  const usable = years.filter(y => y && y.pct && y.blocks >= RARITY_MIN_BLOCKS);
+  const y = usable.length ? usable[usable.length - 1] : null;
+  if(!y) return null;
+  const current = y.year === new Date().getUTCFullYear();
+  return {year: y.year, current, oneIn: Math.round(100 / y.pct)};
 }
 
 function tierOf(b){
@@ -947,7 +975,10 @@ function fmtShare(pct){
 
 function pureLabel(){
   const r = pureRarity();
-  return r ? `1 IN ${r.oneIn} BLOCKS THIS YEAR` : 'NOTHING BEYOND OLD LIMITS';
+  if(!r) return 'NOTHING BEYOND OLD LIMITS';
+  if(r.window) return `1 IN ${r.oneIn} RECENT BLOCKS`;
+  return r.current ? `1 IN ${r.oneIn} BLOCKS THIS YEAR`
+                   : `1 IN ${r.oneIn} BLOCKS IN ${r.year}`;
 }
 
 function blockEl(b, isNew){
@@ -977,15 +1008,25 @@ function blockEl(b, isNew){
       ${kind.size ? `<div class="typesize">${kind.size}</div>` : ''}
     </div>
     <div>
-      <div class="share">${pure ? 'CLEAN'
+      <div class="share">${pure ? (isEmpty(b) ? 'EMPTY' : 'CLEAN')
         : fmtShare(pct) + '<span>%</span>'}</div>
-      <div class="sharelabel">${pure ? pureLabel() : 'BEYOND OLD LIMITS'}</div>
+      <div class="sharelabel">${pure
+        ? (isEmpty(b) ? 'NOT COUNTED AS CLEAN' : pureLabel())
+        : 'BEYOND OLD LIMITS'}</div>
       <div class="fill">
         <i class="all" style="width:${barWidth(allPct)}%"></i>
         <i class="bey" style="width:${barWidth(pct)}%"></i>
       </div>
     </div>
     ${b.miner ? `<div class="miner">⛏ ${b.miner}</div>` : ''}`;
+
+  if(pure && !isEmpty(b)){
+    const r = pureRarity();
+    if(r && r.window) el.querySelector('.sharelabel').title =
+      `1 in ${r.oneIn} of the last ${r.window.toLocaleString()} blocks carried `
+      + `nothing the old rules would have blocked`
+      + (r.months ? ` (${r.months[0]} – ${r.months[1]})` : '');
+  }
 
   el.querySelector('.fill').title =
     `bar = share of this block\n` +
@@ -1030,7 +1071,21 @@ const KIND_MAP = [
 // added together). Instead: show whichever component is larger — that
 // is what actually earned the block's tier — and name the other one
 // explicitly in the tooltip rather than mashing both into one line.
+// An EMPTY block carries no data because it carries nothing at all —
+// mined before validation finished, not because anyone chose restraint.
+// export.py excludes empty blocks from the clean-block rate for exactly
+// that reason, so the dashboard must not badge one CLEAN and quote a rate
+// it was never counted in. They are ~1 in 400 blocks, which would
+// otherwise inflate what a viewer sees by about a tenth.
+function isEmpty(b){
+  return beyondBytes(b) === 0 && (b.tx_count || 0) === 0;
+}
+
 function contentKind(b){
+  if(isEmpty(b))
+    return {icon:'clean', word:'NO TRANSACTIONS', size:'',
+            label:'an empty block — mined before validation completed, so it '
+                + 'carries no data because it carries nothing'};
   if(beyondBytes(b) === 0)
     return {icon:'clean', word:'NOTHING NEW', size:'',
             label:'nothing the old rules would have blocked'};
@@ -1066,12 +1121,13 @@ function fire(){
 // every printed number came off the node. PRESSURE still drives the
 // animation — the portal shows the pressure, the caption states the size.
 function setPressure(mem){
-  if(!mem){ PRESSURE = 0; $('pgauge').innerHTML = 'MEMPOOL <b>—</b>'; return; }
+  if(!mem){ PRESSURE = 0;
+    $('pgauge').innerHTML = '<b>—</b><span class="k">IN THE MEMPOOL</span>';
+    return; }
   const vMB = Math.max(mem.vbytes / 1e6, 0.1);
   PRESSURE = clamp(Math.log10(vMB) / Math.log10(300), 0, 1);
   $('pgauge').innerHTML =
-    `MEMPOOL <b>${vMB.toFixed(1)} vMB</b>` +
-    (mem.txs ? ` · <b>${mem.txs.toLocaleString()}</b> TXS` : '');
+    `<b>${vMB.toFixed(1)} vMB</b><span class="k">IN THE MEMPOOL</span>`;
 }
 
 async function poll(){
@@ -1240,7 +1296,7 @@ function chartTheme(){
   const g = n => v.getPropertyValue(n).trim();
   return {text:g('--text'), dim:g('--dim'), grid:g('--c-grid'),
           axis:g('--c-axis'), tip:g('--c-tip'), line2:g('--line-2'),
-          s1:g('--c-series-1'), s2:g('--c-series-2'), mark:g('--c-mark')};
+          s1:g('--c-series-1'), s2:g('--c-series-2')};
 }
 
 function themeChart(){
@@ -1278,7 +1334,7 @@ function renderPile(){
       label:{formatter: SHORT[e.label]||e.label, color:CT.text,
              fontFamily:"'IBM Plex Mono',monospace", fontSize:12, position:'end',
              align: idx > n*0.88 ? 'right' : (idx < n*0.12 ? 'left' : 'center'),
-             padding:[6,0,0,0], backgroundColor:CT.mark},
+             padding:[7,0,0,0], fontWeight:500},
       lineStyle:{color:CT.dim, type:'dashed', width:1}
     };
   });

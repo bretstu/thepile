@@ -153,6 +153,19 @@ ORD_PROTOCOLS = {"ord"}
 # How many recent blocks feed the tier threshold.
 TIER_WINDOW = 20_000
 
+# Shorter than TIER_WINDOW on purpose. The clean-block rate is DRIFTING —
+# 1.55% in January 2026, 2.68% in July — so a 20,000-block window (~4.6
+# months) averages across a near-doubling and publishes a figure the
+# recent chain no longer matches: 1 in 45 against a trailing-10,000 rate
+# of 1 in 40 and a July rate of 1 in 37.
+#
+# 10,000 blocks is ~10 weeks, still ~250 clean events, so the 95% interval
+# is 1 in 36 to 1 in 46 — tight enough to quote and current enough to be
+# true. The tier bands keep the longer window because a distribution of
+# byte shares is far less sensitive to this drift than a rate of a rare
+# event is.
+CLEAN_WINDOW = 10_000
+
 
 def main():
     os.makedirs(OUT, exist_ok=True)
@@ -291,8 +304,27 @@ def main():
                   "pct": round(v["clean"] / v["n"] * 100, 4)}
                  for y, v in sorted(by_year.items()) if v["n"] >= 500]
 
+        # Trailing-window rate. A calendar year is the wrong unit: it
+        # resets every January to a sample of a few hundred blocks, and by
+        # December it averages across whatever changed in February. See
+        # CLEAN_WINDOW for why this window is shorter than the tier one.
+        joined_rows = sorted((r for r in ob
+                              if r["height"] in wenv and r["tx_count"] > 0),
+                             key=lambda r: r["height"])[-CLEAN_WINDOW:]
+        recent = None
+        if len(joined_rows) >= 2000:
+            rc = sum(1 for r in joined_rows
+                     if r["excess_bytes"] == 0 and wenv[r["height"]] == 0)
+            recent = {"window_blocks": len(joined_rows),
+                      "clean": rc,
+                      "pct": round(rc / len(joined_rows) * 100, 4),
+                      "height_range": [joined_rows[0]["height"],
+                                       joined_rows[-1]["height"]],
+                      "months": [month_key(joined_rows[0]["block_time"]),
+                                 month_key(joined_rows[-1]["block_time"])]}
+
         last_clean = {"block": last_clean, "coverage_end": joined_end,
-                      "by_year": years,
+                      "by_year": years, "recent": recent,
                       "unmeasured_above": max(0, max(wenv, default=0) and
                                               ob[-1]["height"] - joined_end)}
 
