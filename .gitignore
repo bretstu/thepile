@@ -8,16 +8,24 @@
 # pulled off the blockchain. Publishing that text under your name is a
 # different act from publishing code that measures it. Regenerate
 # locally with the builders instead.
-data/
-scratch/
+# NOTE THE LEADING SLASH. Without it, "data/" matches a directory named
+# data at ANY depth — including dashboard/data/ — which silently hides
+# the exported JSON the site needs. Anchor it to the repo root.
+/data/
+/scratch/
 
-# Generated dashboard data. The SLOW files (cumulative, monthlies, meta)
-# are committed: they ship with the site so a clone renders without a
-# node, and they only change when the chain is re-scanned. The LIVE pair
-# is written every block and goes to R2 instead — committing it would
-# mean a commit per block, forever.
-dashboard/data/live.json
-dashboard/data/live_history.json
+# Generated dashboard JSON. Ignore everything, then un-ignore the one
+# file the site actually reads. The others (meta, blocktape, monthlies,
+# families) fed the scrapped index.html; blocktape alone is one row per
+# block and would add megabytes of new blob to git on every re-export.
+# They regenerate in seconds from export.py, so re-add one the day a
+# page reads it.
+#
+# The pattern must be "dashboard/data/*" and not "dashboard/data/":
+# git cannot un-ignore a file inside an excluded DIRECTORY, only inside
+# excluded CONTENTS.
+dashboard/data/*
+!dashboard/data/cumulative.json
 
 # ---- python ----
 venv/
