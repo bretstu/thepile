@@ -108,7 +108,7 @@ def classify_block(height):
     beyond_bytes = envelope + or_excess
 
     return {
-        "miner": miner_from_coinbase(block),
+        "miner": miner_from_coinbase(block),   # from POOL_TAGS, never raw
         "height": height,
         "hash": block_hash,
         "time": block["time"],
@@ -125,33 +125,51 @@ def classify_block(height):
     }
 
 
+# THE PUBLISHED CONTRACT.
+#
+# Every field that may appear in live.json or live_history.json, and
+# nothing else. Both writers project through this, so the published files
+# cannot carry a field that is not listed here — no matter what a block
+# dict picks up in memory, what an older file already contained, or what a
+# future contributor adds while debugging.
+#
+# Adding a name to this tuple is the moment to ask: is this a number this
+# code computed, or a label from a bounded list in this repo? If it is
+# neither — if it is a string that came off the chain — it does not belong
+# in a public file. That is the project's one hard line; this tuple is
+# where it is enforced rather than described.
+PUBLISHED_FIELDS = (
+    "height", "hash", "time", "miner",
+    "tx_count", "block_size",
+    "envelope_bytes", "opreturn_bytes", "opreturn_excess_bytes",
+    "data_bytes", "data_share",
+    "beyond_bytes", "beyond_share",
+    "top_family",
+)
+
+
+def published(block):
+    """One block, reduced to the published contract."""
+    return {k: block[k] for k in PUBLISHED_FIELDS if k in block}
+
+
 def upgrade_history(history):
-    """Bring old history rows up to the current schema.
+    """Backfill beyond_bytes into rows written before it existed.
 
-    Two jobs. First: strip any text left in files written before the wire
-    was removed — the history file is published, so stale rows would keep
-    serving that text for a month until they aged out. Second: backfill
-    beyond_bytes, which needs the full witness accounting and so costs a
-    reclassify per row.
+    Needs the full witness accounting, so it costs a reclassify per row
+    and is capped at a day's worth per startup.
     """
-    scrubbed = 0
-    for b in history.values():
-        if b.pop("graffiti", None) is not None:
-            scrubbed += 1
-        b.pop("graffiti_v", None)
-    if scrubbed:
-        print(f"Scrubbed stored text from {scrubbed:,} history blocks.")
-
     missing = sorted((b for b in history.values() if "beyond_bytes" not in b),
                      key=lambda b: -b["height"])[:144]
-    if missing:
-        print(f"Backfilling beyond_bytes for {len(missing)} blocks...")
-        for b in missing:
-            try:
-                history[b["height"]] = classify_block(b["height"])
-            except Exception as e:
-                print(f"  {b['height']:,}: skipped ({e})")
-    return bool(scrubbed or missing)
+    if not missing:
+        return False
+    print(f"Backfilling beyond_bytes for {len(missing)} blocks...")
+    for b in missing:
+        try:
+            history[b["height"]] = classify_block(b["height"])
+        except Exception as e:
+            print(f"  {b['height']:,}: skipped ({e})")
+    return True
 
 
 def load_history():
@@ -172,7 +190,7 @@ def save_history(history):
     failed write is retried by the caller until it lands — unlike
     live.json, where the next heartbeat carries everything anyway."""
     blocks = sorted(history.values(), key=lambda b: -b["height"])[:HISTORY_KEEP]
-    return write_atomic(blocks, HISTORY)
+    return write_atomic([published(b) for b in blocks], HISTORY)
 
 
 def pure_stats(history):
@@ -260,7 +278,8 @@ def mempool_snapshot():
 
 
 def emit(history, tip, mempool=None):
-    blocks = sorted(history.values(), key=lambda b: -b["height"])
+    blocks = [published(b)
+              for b in sorted(history.values(), key=lambda b: -b["height"])]
     write_atomic({
         "updated_at": int(time.time()),
         "tip": tip,
