@@ -1,0 +1,32 @@
+# ---- secrets: NEVER commit ----
+.env
+*.key
+*.pem
+
+# ---- data: large, regenerable, and NOT yours to republish ----
+# data/ reaches 2-6 GB and the graffiti CSVs contain arbitrary text
+# pulled off the blockchain. Publishing that text under your name is a
+# different act from publishing code that measures it. Regenerate
+# locally with the builders instead.
+data/
+scratch/
+
+# generated dashboard data (regenerate with export.py)
+dashboard/data/*.json
+
+# ---- python ----
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- os / editor ----
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ---- notes ----
+*.docx
+~$*

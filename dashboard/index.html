@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blockspace Ledger — non-monetary data on Bitcoin, measured</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<style>
+  :root{
+    --ink:#0B0E14; --panel:#11161F; --line:#1D2430;
+    --parchment:#E8E3D5; --slate:#7B8494;
+    --amber:#E09F3E; --teal:#4FB3BF; --brick:#C1554D;
+    --mono:'IBM Plex Mono',monospace;
+    --sans:'IBM Plex Sans',sans-serif;
+    --disp:'Big Shoulders Display',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--ink);color:var(--parchment);font-family:var(--sans);
+       font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  main{max-width:1080px;margin:0 auto;padding:0 24px 96px}
+
+  /* header */
+  header{padding:56px 0 8px}
+  h1{font-family:var(--disp);font-weight:800;font-size:clamp(44px,7vw,84px);
+     letter-spacing:.5px;line-height:.95;text-transform:uppercase}
+  h1 .thin{font-weight:600;color:var(--slate)}
+  .thesis{font-family:var(--mono);color:var(--slate);font-size:13px;
+          margin-top:14px;max-width:70ch}
+  .thesis b{color:var(--parchment);font-weight:500}
+  .stamp{font-family:var(--mono);font-size:11px;color:var(--slate);
+         border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+         padding:8px 0;margin-top:22px;display:flex;gap:24px;flex-wrap:wrap}
+  .stamp span b{color:var(--amber);font-weight:500}
+
+  /* block tape hero */
+  #tapewrap{margin-top:2px;padding:18px 0 4px}
+  #tape{width:100%;height:110px;display:block}
+  .tapecap{font-family:var(--mono);font-size:11px;color:var(--slate);
+           display:flex;justify-content:space-between;margin-top:6px}
+
+  /* sections */
+  section{margin-top:72px}
+  .eyebrow{font-family:var(--mono);font-size:11px;color:var(--amber);
+           letter-spacing:.08em}
+  .eyebrow .src{color:var(--slate)}
+  h2{font-family:var(--disp);font-weight:800;font-size:clamp(26px,3.4vw,40px);
+     text-transform:uppercase;letter-spacing:.5px;margin:6px 0 4px}
+  .sub{color:var(--slate);max-width:78ch;font-size:14px}
+  .chart{height:420px;margin-top:20px;background:var(--panel);
+         border:1px solid var(--line);border-radius:4px}
+  .chart.tall{height:480px}
+  .foot{font-family:var(--mono);font-size:11px;color:var(--slate);
+        margin-top:10px;max-width:88ch}
+  .foot b{color:var(--parchment);font-weight:500}
+  .toggle{display:flex;gap:0;margin-top:16px;font-family:var(--mono);font-size:11px}
+  .toggle button{background:var(--panel);border:1px solid var(--line);
+    color:var(--slate);padding:7px 14px;cursor:pointer;font-family:var(--mono);
+    font-size:11px;letter-spacing:.04em}
+  .toggle button+button{border-left:0}
+  .toggle button:first-child{border-radius:3px 0 0 3px}
+  .toggle button:last-child{border-radius:0 3px 3px 0}
+  .toggle button[aria-pressed="true"]{background:var(--amber);color:var(--ink);
+    border-color:var(--amber);font-weight:500}
+  .ci{font-family:var(--mono);font-size:11px;color:var(--amber);margin-top:10px}
+  .missing{display:flex;align-items:center;justify-content:center;
+           height:100%;color:var(--slate);font-family:var(--mono);font-size:13px}
+
+  footer{margin-top:88px;border-top:1px solid var(--line);padding-top:18px;
+         font-family:var(--mono);font-size:11px;color:var(--slate);line-height:1.8}
+  a{color:var(--teal)}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">MEASURED FROM A SELF-HOSTED FULL NODE · NOT AN OPINION PIECE</div>
+    <h1>Blockspace <span class="thin">Ledger</span></h1>
+    <p class="thesis">An exact byte accounting of <b>non-monetary data on the Bitcoin
+      blockchain</b> — inscription envelopes in witness space and OP_RETURN data
+      carriers — parsed from raw blocks, verified by a per-block accounting
+      identity, with unattributed bytes reported rather than hidden.</p>
+    <div class="stamp" id="stamp"><span>loading meta…</span></div>
+  </header>
+
+  <div id="tapewrap">
+    <canvas id="tape" aria-label="One bar per sampled block, height showing the share of block bytes used by data envelopes"></canvas>
+    <div class="tapecap"><span id="tapeL"></span>
+      <span>ONE BAR = ONE SAMPLED BLOCK · HEIGHT = DATA-ENVELOPE SHARE OF BLOCK BYTES</span>
+      <span id="tapeR"></span></div>
+  </div>
+
+  <section>
+    <div class="eyebrow">CHART <span class="src">· cumulative.json ← witness_blocks.csv + blocks.csv</span></div>
+    <h2>The pile: cumulative non-monetary bytes</h2>
+    <p class="sub">Estimated running total of non-monetary bytes: inscription
+      payloads in witness space, with OP_RETURN data stacked on top. Signatures,
+      control blocks and ordinary spending scripts are excluded — only bytes
+      that serve no monetary function are counted.</p>
+    <div class="toggle" role="group" aria-label="Measure">
+      <button id="t_content" aria-pressed="true">CONTENT BYTES</button>
+      <button id="t_envelope" aria-pressed="false">ENVELOPE BYTES</button>
+      <button id="t_ord" aria-pressed="false">ORD ONLY</button>
+    </div>
+    <div class="ci" id="ci"></div>
+    <div id="c_cum" class="chart tall"></div>
+    <p class="foot" id="modenote"></p>
+    <p class="foot" id="cumfoot"><b>What counts:</b> envelopes are
+      <code>OP_FALSE OP_IF … OP_ENDIF</code> — a branch the script interpreter never
+      executes, so it can carry data and nothing else. Every envelope byte is
+      non-monetary by construction, whichever protocol wrote it. Signatures,
+      taproot control blocks and ordinary spending scripts are counted as
+      overhead and excluded here. <b>Honest print:</b> totals are extrapolated from sampled
+      blocks (sum × step) and marked estimated. Coverage windows differ —
+      OP_RETURN has existed since 2014 but is measured here only from the
+      start of its dataset, so its early total is understated. On permanence:
+      every node downloads these bytes; archival nodes store them forever;
+      pruned nodes may discard block and witness data after validation. The
+      strictly unprunable UTXO set is not measured here.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">CHART <span class="src">· witness_monthly.json ← witness_blocks.csv</span></div>
+    <h2>Envelope share of blockspace</h2>
+    <p class="sub">What fraction of all block bytes were data-storage envelopes,
+      by month. The Feb–Mar 2023 image era peaks near half of every byte
+      on the chain.</p>
+    <div id="c_share" class="chart"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">CHART <span class="src">· families.json ← witness_content_types.csv</span></div>
+    <h2>What is actually stored</h2>
+    <p class="sub">Declared content types, grouped into media families.
+      The inversion is the story: text dominates by count, images dominate
+      by bytes.</p>
+    <div id="c_fam" class="chart"></div>
+  </section>
+
+  <section>
+    <div class="eyebrow">CHART <span class="src">· opreturn_monthly.json ← blocks.csv</span></div>
+    <h2>OP_RETURN after Core v30</h2>
+    <p class="sub">Monthly OP_RETURN bytes (estimated chain total), with bytes in
+      excess of the pre-v30 relay limit shown separately. The limit lifted in
+      October 2025; excess stayed near zero for seven months.</p>
+    <div id="c_or" class="chart"></div>
+  </section>
+
+  <footer id="foot">
+    Sampled measurement · exact per-block accounting identity (envelope +
+    overhead + residual = witness) verified on every block · classification
+    code and tests: <span id="repo">repository link pending</span><br>
+    Built against a self-hosted Bitcoin Knots node. Charts render pre-computed
+    JSON; the browser does no aggregation.
+  </footer>
+</main>
+
+<script>
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const C = {ink:css('--ink'),panel:css('--panel'),line:css('--line'),
+           parch:css('--parchment'),slate:css('--slate'),
+           amber:css('--amber'),teal:css('--teal'),brick:css('--brick')};
+const MONO = css('--mono');
+
+const AXIS = {axisLine:{lineStyle:{color:C.line}},
+              axisLabel:{color:C.slate,fontFamily:MONO,fontSize:10},
+              splitLine:{lineStyle:{color:C.line}}};
+const BASE = {backgroundColor:'transparent',
+              textStyle:{fontFamily:MONO,color:C.parch},
+              grid:{left:64,right:24,top:48,bottom:44},
+              tooltip:{trigger:'axis',backgroundColor:C.panel,
+                       borderColor:C.line,textStyle:{color:C.parch,fontFamily:MONO,fontSize:11}}};
+
+async function j(name){
+  try{const r = await fetch('data/'+name); if(!r.ok) throw 0; return await r.json();}
+  catch(e){return null;}
+}
+function missing(id,msg){document.getElementById(id).innerHTML =
+  '<div class="missing">'+msg+' — run export.py after building that dataset</div>';}
+
+function markLines(events, months){
+  const set = new Set(months);
+  return events.filter(e=>set.has(e.date.slice(0,7))).map(e=>({
+    xAxis:e.date.slice(0,7), label:{formatter:e.label,color:C.brick,
+      fontFamily:MONO,fontSize:10,rotate:90,position:'insideEndTop'},
+    lineStyle:{color:C.brick,type:'dashed',width:1}}));
+}
+
+(async ()=>{
+  const meta = await j('meta.json');
+  const events = meta ? meta._meta.events : [];
+
+  // ---- stamp ---------------------------------------------------------
+  if(meta){
+    const d = meta._meta.datasets, s = [];
+    s.push(`<span>generated <b>${meta._meta.generated_at}</b></span>`);
+    for(const [k,v] of Object.entries(d))
+      s.push(`<span>${k}: <b>${v.blocks.toLocaleString()}</b> blocks · step <b>${v.step}</b> · ${v.date_range[0]} → ${v.date_range[1]}</span>`);
+    document.getElementById('stamp').innerHTML = s.join('');
+  }
+
+  // ---- block tape hero -----------------------------------------------
+  const tape = await j('blocktape.json');
+  if(tape){
+    const cv = document.getElementById('tape');
+    const dpr = window.devicePixelRatio||1;
+    const W = cv.clientWidth, H = 110;
+    cv.width = W*dpr; cv.height = H*dpr;
+    const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr);
+    const rows = tape.rows, n = rows.length, bw = W/n;
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let i = 0;
+    function draw(upto){
+      for(; i<upto && i<n; i++){
+        const share = rows[i][1];
+        const h = Math.max(1, share*H);
+        ctx.fillStyle = share>0.30?C.amber:share>0.05?'#8A6A34':'#2A3140';
+        ctx.fillRect(i*bw, H-h, Math.max(bw*0.7,0.5), h);
+      }
+    }
+    if(reduced){draw(n);}
+    else{
+      const perFrame = Math.ceil(n/60);
+      (function step(){draw(i+perFrame); if(i<n) requestAnimationFrame(step);})();
+    }
+    document.getElementById('tapeL').textContent = 'BLOCK '+rows[0][0].toLocaleString();
+    document.getElementById('tapeR').textContent = 'BLOCK '+rows[n-1][0].toLocaleString();
+  } else {
+    document.getElementById('tapewrap').style.display='none';
+  }
+
+  // ---- cumulative ------------------------------------------------------
+  const cum = await j('cumulative.json');
+  if(cum){
+    const ch = echarts.init(document.getElementById('c_cum'));
+    const MODES = {
+      content:{key:'witness_content_mb', label:'Inscription payloads',
+        note:'Payload only — the stored file, excluding protocol fields. Most conservative.'},
+      envelope:{key:'witness_envelope_mb', label:'Inscription envelopes',
+        note:'Payload plus the OP_FALSE OP_IF wrapper and protocol fields. All non-monetary: an envelope never executes.'},
+      ord:{key:'witness_content_ord_mb', label:'Ordinals payloads only',
+        note:'Ord protocol only, for comparison with trackers that count Ordinals alone. Understates the total — other protocols write envelopes too.'},
+    };
+    let mode = 'content';
+
+    function render(){
+      const m = MODES[mode];
+      const wSeries = cum[m.key] || [];
+      ch.setOption({...BASE,
+        legend:{textStyle:{color:C.slate,fontFamily:MONO,fontSize:11},top:8},
+        xAxis:{type:'category',data:cum.months,...AXIS},
+        yAxis:{type:'value',name:'MB (est.)',nameTextStyle:{color:C.slate,fontFamily:MONO},...AXIS},
+        series:[
+          {name:m.label,type:'line',stack:'t',areaStyle:{opacity:.55},
+           symbol:'none',lineStyle:{width:1.5},color:C.amber,data:wSeries,
+           markLine:{symbol:'none',silent:true,data:markLines(events,cum.months)}},
+          {name:'OP_RETURN data',type:'line',stack:'t',areaStyle:{opacity:.55},
+           symbol:'none',lineStyle:{width:1.5},color:C.teal,data:cum.opreturn_mb},
+        ]}, true);
+
+      // confidence interval + total, from the bootstrap in export.py
+      const ciKey = mode==='envelope' ? 'witness_envelope_mb' : 'witness_content_mb';
+      const w = (cum.ci95||{})[ciKey], o = (cum.ci95||{})['opreturn_mb'];
+      const gb = v => (v/1000).toFixed(2)+' GB';
+      let line = '';
+      if(w) line += `witness ${gb(w[0])} <span style="color:${C.slate}">(95% CI ${gb(w[1])}–${gb(w[2])})</span>`;
+      if(o) line += `${w?' · ':''}OP_RETURN ${gb(o[0])} <span style="color:${C.slate}">(95% CI ${gb(o[1])}–${gb(o[2])})</span>`;
+      document.getElementById('ci').innerHTML = line;
+      document.getElementById('modenote').textContent = m.note;
+    }
+
+    for(const k of Object.keys(MODES)){
+      document.getElementById('t_'+k).addEventListener('click',()=>{
+        mode = k;
+        for(const kk of Object.keys(MODES))
+          document.getElementById('t_'+kk).setAttribute('aria-pressed', String(kk===k));
+        render();
+      });
+    }
+    render();
+    addEventListener('resize',()=>ch.resize());
+
+    const covW = cum.coverage.witness, covO = cum.coverage.opreturn;
+    if(covW||covO){
+      const el = document.getElementById('cumfoot');
+      el.innerHTML = `<b>Coverage:</b> witness ${covW?covW.join(' → '):'—'} · OP_RETURN ${covO?covO.join(' → '):'—'}. ` + el.innerHTML;
+    }
+  } else missing('c_cum','cumulative.json not found');
+
+  // ---- envelope share --------------------------------------------------
+  const wm = await j('witness_monthly.json');
+  if(wm){
+    const ch = echarts.init(document.getElementById('c_share'));
+    ch.setOption({...BASE,
+      xAxis:{type:'category',data:wm.months,...AXIS},
+      yAxis:{type:'value',name:'% of block bytes',
+             nameTextStyle:{color:C.slate,fontFamily:MONO},...AXIS},
+      series:[{name:'Envelope share',type:'bar',color:C.amber,
+        data:wm.envelope_share_pct,barWidth:'62%',
+        markLine:{symbol:'none',silent:true,data:markLines(events,wm.months)}}]});
+    addEventListener('resize',()=>ch.resize());
+  } else missing('c_share','witness_monthly.json not found');
+
+  // ---- families ----------------------------------------------------------
+  const fam = await j('families.json');
+  if(fam){
+    const ch = echarts.init(document.getElementById('c_fam'));
+    ch.setOption({...BASE,
+      grid:{left:110,right:60,top:48,bottom:30},
+      legend:{textStyle:{color:C.slate,fontFamily:MONO,fontSize:11},top:8},
+      xAxis:{type:'value',name:'%',nameTextStyle:{color:C.slate,fontFamily:MONO},...AXIS},
+      yAxis:{type:'category',data:fam.families.slice().reverse(),...AXIS},
+      series:[
+        {name:'share of bytes',type:'bar',color:C.amber,
+         data:fam.byte_share_pct.slice().reverse(),
+         label:{show:true,position:'right',color:C.slate,fontFamily:MONO,
+                fontSize:10,formatter:'{c}%'}},
+        {name:'share of envelope count',type:'bar',color:C.teal,
+         data:fam.count_share_pct.slice().reverse()},
+      ]});
+    addEventListener('resize',()=>ch.resize());
+  } else missing('c_fam','families.json not found');
+
+  // ---- OP_RETURN -----------------------------------------------------------
+  const om = await j('opreturn_monthly.json');
+  if(om){
+    const ch = echarts.init(document.getElementById('c_or'));
+    ch.setOption({...BASE,
+      legend:{textStyle:{color:C.slate,fontFamily:MONO,fontSize:11},top:8},
+      xAxis:{type:'category',data:om.months,...AXIS},
+      yAxis:[{type:'value',name:'KB (est.)',
+              nameTextStyle:{color:C.slate,fontFamily:MONO},...AXIS}],
+      series:[
+        {name:'All OP_RETURN bytes',type:'bar',color:C.teal,barWidth:'62%',
+         data:om.or_kb_est,
+         markLine:{symbol:'none',silent:true,data:markLines(events,om.months)}},
+        {name:'Bytes over pre-v30 limit',type:'bar',color:C.brick,
+         barWidth:'62%',barGap:'-100%',data:om.excess_kb_est,z:3},
+      ]});
+    addEventListener('resize',()=>ch.resize());
+  } else missing('c_or','opreturn_monthly.json not found');
+})();
+</script>
+</body>
+</html>

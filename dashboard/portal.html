@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Portal — blocks, as they harden</title>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<style>
+  :root{
+    --ink:#0B0E14; --panel:#11161F; --line:#1D2430;
+    --parchment:#E8E3D5; --slate:#7B8494;
+    --amber:#E09F3E; --teal:#4FB3BF; --brick:#C1554D;
+    --mono:'IBM Plex Mono',monospace; --disp:'Big Shoulders Display',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--ink);color:var(--parchment);font-family:var(--mono);
+       overflow-x:hidden;min-height:100vh}
+  main{max-width:1280px;margin:0 auto;padding:32px 24px 64px}
+
+  header{display:flex;justify-content:space-between;align-items:baseline;
+         flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--line);padding-bottom:14px}
+  h1{font-family:var(--disp);font-weight:800;font-size:clamp(30px,4vw,48px);
+     text-transform:uppercase;letter-spacing:.5px}
+  .stat{font-size:12px;color:var(--slate)}
+  .stat b{color:var(--parchment);font-weight:500}
+  #stale{display:none;background:var(--brick);color:var(--ink);font-size:12px;
+         padding:6px 12px;border-radius:3px;font-weight:500}
+
+  /* counter */
+  #counterwrap{text-align:center;padding:36px 0 4px}
+  #counter{font-family:var(--disp);font-weight:800;
+           font-size:clamp(64px,11vw,140px);line-height:1;letter-spacing:2px;
+           font-variant-numeric:tabular-nums}
+  #counter.overdue{animation:overduePulse 2s ease-in-out infinite}
+  @keyframes overduePulse{50%{color:var(--amber)}}
+  .counterlabel{font-size:11px;color:var(--slate);letter-spacing:.15em}
+
+  /* stage */
+  #stage{position:relative;margin-top:30px;display:flex;align-items:center;
+         gap:0;min-height:320px}
+
+  /* portal */
+  #portal{position:relative;width:215px;height:310px;flex:0 0 215px}
+  .pgauge{position:absolute;top:-10px;left:50%;transform:translateX(-50%);
+        white-space:nowrap;font-size:12px;color:var(--slate);letter-spacing:.08em}
+  .pgauge b{color:var(--amber);font-weight:500}
+  #ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+        width:158px;height:276px;border-radius:50%;
+        border:3px solid var(--teal);overflow:hidden;background:#070A10;
+        box-shadow:0 0 24px rgba(79,179,191,.35), inset 0 0 24px rgba(79,179,191,.25);
+        animation:idle 4s ease-in-out infinite}
+  @keyframes idle{50%{box-shadow:0 0 34px rgba(79,179,191,.5), inset 0 0 30px rgba(79,179,191,.35)}}
+  #ring.fire{animation:fire .9s ease-out}
+  @keyframes fire{
+    0%{box-shadow:0 0 30px rgba(79,179,191,.5), inset 0 0 30px rgba(79,179,191,.4)}
+    30%{box-shadow:0 0 90px 24px rgba(232,227,213,.9), inset 0 0 60px rgba(232,227,213,.8);
+        border-color:var(--parchment)}
+    100%{box-shadow:0 0 24px rgba(79,179,191,.35), inset 0 0 24px rgba(79,179,191,.25)}
+  }
+  #vortex{position:absolute;inset:0}
+  #flash{position:fixed;inset:0;background:var(--parchment);opacity:0;
+         pointer-events:none;z-index:50}
+  #flash.go{animation:flash .5s ease-out}
+  @keyframes flash{15%{opacity:.14}100%{opacity:0}}
+
+  /* block row — free-floating, no scrollbar chrome */
+  #row{display:flex;gap:32px;align-items:center;overflow-x:auto;
+       padding:44px 16px 52px;flex:1;
+       scrollbar-width:none;-ms-overflow-style:none}
+  #row::-webkit-scrollbar{display:none}
+
+  @keyframes bob{
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(calc(-6px * var(--bobdir,1)))}
+  }
+  .block{position:relative;flex:0 0 148px;height:172px;border-radius:6px;
+         animation:bob calc(6s + var(--bobvar,0s)) ease-in-out infinite;
+         background:linear-gradient(160deg,#161C27,#0E1520);
+         border:1px solid var(--line);padding:12px 12px 10px;
+         display:flex;flex-direction:column;justify-content:space-between}
+  .block::before{content:"";position:absolute;left:6px;right:-6px;top:-10px;height:10px;
+         background:linear-gradient(90deg,#232B3A,#1A2130);
+         transform:skewX(-45deg);border-radius:2px 2px 0 0}
+
+  .h{font-size:14px;font-weight:500;color:var(--teal)}
+  .meta{font-size:10px;color:var(--slate);line-height:1.7}
+  .share{font-family:var(--disp);font-weight:800;font-size:30px;line-height:1}
+  .sharelabel{font-size:9px;color:var(--slate);letter-spacing:.1em}
+  .fam{font-size:9px;color:var(--amber);text-transform:uppercase;letter-spacing:.1em}
+
+  .block.data{border-color:rgba(224,159,62,.7)}
+  .block.data .share{color:var(--amber)}
+  .block.data{box-shadow:0 0 calc(9px + 26px*var(--i)) calc(1px + 5px*var(--i))
+              rgba(224,159,62,calc(.15 + .42*var(--i)))}
+  .block.data::after{content:"";position:absolute;inset:0;border-radius:6px;
+      background:repeating-linear-gradient(115deg,transparent 0 7px,
+                 rgba(224,159,62,.5) 7px 8px,transparent 8px 16px);
+      opacity:calc(.12 + .55*var(--i));mix-blend-mode:screen;pointer-events:none;
+      animation:veins 3s linear infinite}
+  @keyframes veins{to{background-position:32px 0}}
+
+  .block.pure{border-color:rgba(79,179,191,.75)}
+  .block.pure .share{color:var(--teal)}
+  .block.pure::after{content:"";position:absolute;inset:0;border-radius:6px;
+      background:linear-gradient(120deg,transparent 30%,rgba(79,179,191,.28) 50%,transparent 70%);
+      background-size:250% 100%;pointer-events:none;
+      animation:sheen 5s ease-in-out infinite}
+  @keyframes sheen{0%{background-position:120% 0}60%,100%{background-position:-120% 0}}
+  .block.pure .fam::before{content:"PURE MONETARY";color:var(--teal)}
+
+  .miner{position:absolute;left:0;right:0;bottom:-26px;text-align:center;
+         font-size:11px;color:var(--slate);letter-spacing:.12em;
+         text-transform:uppercase;white-space:nowrap}
+  .block.emerge{animation:emerge 1s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes emerge{
+    0%{transform:translateX(-120px) scale(.15) rotate(-6deg);opacity:0;filter:brightness(3)}
+    55%{opacity:1;filter:brightness(1.8)}
+    100%{transform:none;filter:brightness(1)}
+  }
+  .block.emerge.data{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+                     dataBirth 1.6s ease-out}
+  @keyframes dataBirth{30%{box-shadow:0 0 90px 30px rgba(224,159,62,.9)}}
+
+  /* odometer */
+  #odowrap{margin-top:26px;text-align:center;border-top:1px solid var(--line);
+           border-bottom:1px solid var(--line);padding:26px 0 22px}
+  .odolabel{font-size:13px;color:var(--slate);letter-spacing:.18em}
+  #odometer{font-family:var(--disp);font-weight:800;
+            font-size:clamp(38px,6.5vw,76px);line-height:1.1;letter-spacing:1px;
+            font-variant-numeric:tabular-nums;margin-top:6px;
+            transition:color .3s}
+  #odometer.lurch{color:var(--amber);text-shadow:0 0 30px rgba(224,159,62,.5)}
+  .odounit{font-size:.32em;color:var(--slate);letter-spacing:2px}
+  .odostats{display:flex;gap:44px;justify-content:center;flex-wrap:wrap;
+            margin-top:16px;font-size:15px;color:var(--slate);letter-spacing:.04em}
+  .odostats b{color:var(--parchment);font-weight:500;font-size:18px}
+  .odostats .k{display:block;font-size:11px;letter-spacing:.15em;margin-bottom:3px}
+  #chainbarwrap{max-width:760px;margin:24px auto 0;display:none}
+  #chaintitle{font-size:12px;color:var(--slate);letter-spacing:.16em;
+              text-align:center;margin-bottom:10px}
+  #chaintitle b{color:var(--parchment);font-weight:500}
+  #chainbar{position:relative;height:40px;background:#151B26;
+            border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  #chainfill{position:absolute;left:0;top:0;bottom:0;width:0%;
+             background:var(--amber);box-shadow:0 0 14px rgba(224,159,62,.55);
+             transition:width 1.2s ease}
+  #chaindata{position:absolute;top:50%;transform:translateY(-50%);
+             left:0;white-space:nowrap;font-size:13px;color:var(--amber);
+             font-weight:500;transition:left 1.2s ease}
+  #chainrest{position:absolute;top:50%;right:12px;transform:translateY(-50%);
+             font-size:13px;color:var(--slate)}
+  .odosub{font-size:12px;color:var(--slate);margin-top:10px;letter-spacing:.05em}
+  .odosub b{color:var(--parchment);font-weight:500}
+
+  #pilechart{margin-top:36px}
+  .chartlabel{font-size:13px;color:var(--slate);letter-spacing:.18em;text-align:center}
+  #c_pile{height:420px;margin-top:14px}
+  .chartfoot{font-size:12px;color:var(--slate);text-align:center;margin-top:8px;
+             letter-spacing:.04em}
+  .chartfoot b{color:var(--parchment);font-weight:500}
+  #wire{margin-top:44px}
+  #wirefeed{max-width:860px;margin:16px auto 0;display:flex;flex-direction:column;gap:10px}
+  .msg{display:flex;gap:14px;align-items:baseline;font-size:13px;line-height:1.5;
+       padding:9px 14px;background:var(--panel);border:1px solid var(--line);
+       border-radius:4px}
+  .msg .bh{flex:0 0 auto;font-size:11px;color:var(--teal)}
+  .msg .src{flex:0 0 auto;font-size:9px;letter-spacing:.1em;padding:2px 7px;
+            border-radius:3px;border:1px solid var(--line);color:var(--slate)}
+  .msg .src.ord{color:var(--amber);border-color:rgba(224,159,62,.45)}
+  .msg .tx{color:var(--parchment);overflow-wrap:anywhere}
+  .msg.fresh{animation:msgIn .7s ease-out}
+  @keyframes msgIn{0%{opacity:0;transform:translateY(-8px);
+    background:rgba(224,159,62,.12)}100%{opacity:1}}
+  .wirefoot{font-size:11px;color:var(--slate);text-align:center;margin-top:12px;
+            letter-spacing:.04em}
+  .legend{margin-top:20px;font-size:13px;color:var(--slate);max-width:90ch;line-height:1.7}
+  .legend b{color:var(--parchment);font-weight:500}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div id="flash"></div>
+<main>
+  <header>
+    <h1>The Portal</h1>
+    <span class="stat">tip <b id="tip">—</b> · window <b id="win">—</b> blocks · poller <b id="beat">—</b></span>
+    <span id="stale">POLLER STALE — data frozen</span>
+  </header>
+
+  <div id="counterwrap">
+    <div id="counter">—:—</div>
+    <div class="counterlabel">SINCE LAST BLOCK · TARGET ~10:00</div>
+  </div>
+
+  <div id="stage">
+    <div id="portal">
+      <div class="pgauge" id="pgauge">mempool —</div>
+      <div id="ring"><canvas id="vortex"></canvas></div>
+    </div>
+    <div id="row"></div>
+  </div>
+
+  <div id="odowrap">
+    <div class="odolabel">THE PILE · ALL NON-MONETARY DATA EVER WRITTEN TO BITCOIN</div>
+    <div id="odometer">—</div>
+    <div class="odostats" id="odostats"></div>
+    <div id="chainbarwrap">
+      <div id="chaintitle"></div>
+      <div id="chainbar">
+        <div id="chainfill"></div>
+        <div id="chaindata"></div>
+        <div id="chainrest"></div>
+      </div>
+    </div>
+    <div class="odosub" id="odosub">loading historical base…</div>
+  </div>
+
+  <section id="pilechart">
+    <div class="chartlabel">THE PILE OVER TIME · CUMULATIVE SINCE THE FIRST INSCRIPTION</div>
+    <div id="c_pile"></div>
+    <div class="chartfoot" id="pilefoot"></div>
+  </section>
+
+  <section id="wire">
+    <div class="chartlabel">THE GRAFFITI WIRE · HUMAN TEXT FOUND ON THE CHAIN, LIVE</div>
+    <div id="wirefeed"></div>
+    <div class="wirefoot">text-only by design — this feed cannot render images, links, or markup ·
+      protocol payloads filtered out</div>
+  </section>
+
+  <p class="legend">Printed % = exact non-monetary share of each block; the amber
+    aura scales perceptually so small shares stay visible. Zero-data blocks harden
+    clean teal. The portal charges with time since the last block and mempool depth.</p>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const lerp = (a,b,t)=>a+(b-a)*t;
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+let known = new Set();
+let lastBlockTime = null;
+let firstLoad = true;
+let PRESSURE = 0;         // mempool depth, 0..1 log scale
+let burst = 0;            // spikes to 1 when a block fires, decays
+
+// ---- combined charge: crescendo ---------------------------------------
+// Time since last block is the lead instrument (0 -> 1 over 15 min,
+// eased so the last minutes climb hardest); mempool depth is the
+// backing layer. A floor keeps the portal alive even at zero.
+function charge(){
+  const elapsed = lastBlockTime ? Date.now()/1000 - lastBlockTime : 0;
+  const timeF = Math.pow(clamp(elapsed/900, 0, 1), 1.35);
+  return clamp(0.12 + 0.55*timeF + 0.33*PRESSURE, 0, 1);
+}
+
+// ---- vortex ------------------------------------------------------------
+// Particles spiral inward on an elliptical field — faster, brighter and
+// more amber as charge rises. Ripple rings breathe outward from the
+// throat. Lightning frequency rides charge squared.
+const cv = $('vortex');
+const ctx = cv.getContext('2d');
+let W=0, H=0, CX=0, CY=0, RX=0, RY=0;
+function sizeVortex(){
+  const r = $('ring');
+  W = cv.width = r.clientWidth; H = cv.height = r.clientHeight;
+  CX = W/2; CY = H/2; RX = W/2 - 6; RY = H/2 - 6;
+}
+
+const P = [];               // particles
+for(let i=0;i<110;i++) P.push({
+  a: Math.random()*Math.PI*2,
+  r: Math.pow(Math.random(), .7),
+  w: .6 + Math.random()*.8,
+  pa: 0, pr: 0,
+});
+const ripples = [];
+let nextRipple = 0;
+const bolts = [];
+let nextBolt = performance.now() + 2500;
+
+function spawnBolt(strong){
+  const x0 = W*(0.25+Math.random()*0.5), y0 = H*0.06;
+  const pts = [[x0, y0]];
+  let x = x0, y = y0;
+  const segs = 6 + (Math.random()*5|0);
+  for(let i=0;i<segs;i++){
+    x += (Math.random()-0.5) * W*0.34;
+    y += H*0.88/segs * (0.6+Math.random()*0.8);
+    pts.push([clamp(x,4,W-4), Math.min(H-4,y)]);
+  }
+  bolts.push({pts, life: 1, strong});
+}
+
+let lastT = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
+  const I = charge();
+  burst = Math.max(0, burst - dt*1.4);
+
+  ctx.clearRect(0,0,W,H);
+
+  // ripples (water breathing from the throat)
+  if(now > nextRipple){
+    ripples.push({r: .08, life: 1});
+    nextRipple = now + lerp(2600, 380, I) * (0.7+Math.random()*0.6);
+  }
+  for(let i=ripples.length-1;i>=0;i--){
+    const rp = ripples[i];
+    rp.r += dt * lerp(.18, .55, I + burst);
+    rp.life = 1 - rp.r;
+    if(rp.life <= 0){ ripples.splice(i,1); continue; }
+    ctx.beginPath();
+    ctx.ellipse(CX, CY, RX*rp.r, RY*rp.r, 0, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(${I>.55?'224,159,62':'79,179,191'},${(rp.life*.4*(0.3+I)).toFixed(3)})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // particles: elliptical vortex, inner shear, spiral-in
+  for(const p of P){
+    p.pa = p.a; p.pr = p.r;
+    p.a += dt * p.w * lerp(0.5, 4.2, I) * (1.7 - p.r) * (1 + burst*5);
+    p.r -= dt * (lerp(.012, .11, I) + burst*1.3);
+    if(p.r < 0.05){ p.r = 1; p.a = Math.random()*Math.PI*2; p.pa=p.a; p.pr=p.r; }
+    const x1 = CX + Math.cos(p.pa)*RX*p.pr, y1 = CY + Math.sin(p.pa)*RY*p.pr;
+    const x2 = CX + Math.cos(p.a)*RX*p.r,  y2 = CY + Math.sin(p.a)*RY*p.r;
+    const heat = clamp(I*0.75 + (1-p.r)*0.35, 0, 1);
+    const cr = lerp(79,224,heat)|0, cg = lerp(179,159,heat)|0, cb = lerp(191,62,heat)|0;
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.22+0.6*I).toFixed(2)})`;
+    ctx.lineWidth = lerp(.8, 1.8, I);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+
+  // dark throat over the center
+  const g = ctx.createRadialGradient(CX,CY,4,CX,CY,RY*.75);
+  g.addColorStop(0, `rgba(7,10,16,${(.95 - burst*.5).toFixed(2)})`);
+  g.addColorStop(.55, 'rgba(7,10,16,.45)');
+  g.addColorStop(1, 'rgba(7,10,16,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  // lightning
+  const Ieff = clamp(I + burst, 0, 1);
+  if(now > nextBolt && Ieff > 0.1){
+    spawnBolt(Math.random() < Ieff*0.55);
+    const rate = 0.05 + Ieff*Ieff*3.4;
+    nextBolt = now + (-Math.log(1-Math.random())/rate)*1000;
+  }
+  for(let i=bolts.length-1;i>=0;i--){
+    const b = bolts[i];
+    ctx.save();
+    ctx.globalAlpha = b.life * (b.strong?1:.6);
+    ctx.strokeStyle = b.strong ? '#F2EDE0' : '#8AD4DD';
+    ctx.lineWidth = b.strong ? 2.2 : 1.3;
+    ctx.shadowColor = b.strong ? '#E09F3E' : '#4FB3BF';
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    b.pts.forEach((p,j)=> j ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]));
+    ctx.stroke();
+    ctx.restore();
+    b.life -= 0.16;
+    if(b.life <= 0) bolts.splice(i,1);
+  }
+
+  // ring border heat follows charge
+  $('ring').style.borderColor = I > .6 ? 'var(--amber)' : 'var(--teal)';
+
+  if(!REDUCED) requestAnimationFrame(frame);
+}
+
+// ---- odometer ----------------------------------------------------------
+// Seeded from the historical dataset (dashboard/data/cumulative.json,
+// written by export.py), then incremented by exact live blocks above the
+// historical coverage. Sits still between blocks — correctly — and
+// lurches when data lands.
+let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
+let CUM = null;
+async function seedOdometer(){
+  try{
+    const r = await fetch('data/cumulative.json');
+    if(!r.ok) throw 0;
+    const c = await r.json();
+    CUM = c;
+    const wmb = c.witness_content_mb, omb = c.opreturn_mb;
+    odoBase = ((wmb?.[wmb.length-1]||0) + (omb?.[omb.length-1]||0)) * 1e6;
+    const ds = c._meta?.datasets || {};
+    odoGate = Math.max(ds.witness?.height_range?.[1] || 0,
+                       ds.opreturn?.height_range?.[1] || 0);
+    odoSeeded = true;
+    $('odosub').innerHTML = CUM.estimated === false
+      ? `exact through block <b>${odoGate.toLocaleString()}</b> · live after`
+      : `est. through block <b>${odoGate.toLocaleString()}</b> · exact after`;
+  }catch(e){
+    odoBase = 0; odoGate = 0; odoSeeded = false;
+    $('odosub').textContent = 'historical dataset not exported — counting live blocks since page load only';
+  }
+}
+// Live bytes come from live_history.json (~30 days of classified blocks,
+// maintained by the poller) rather than the 12-block display window, so
+// nothing between the historical coverage and the tip goes uncounted.
+// The seam holds as long as export.py is re-run at least monthly; if the
+// history is too shallow to reach the gate, say so instead of undercounting.
+let histWarned = false;
+async function setOdoTarget(){
+  let hist = [];
+  try{
+    const r = await fetch('data/live_history.json?t='+Date.now());
+    if(r.ok) hist = await r.json();
+  }catch(e){}
+  if(!hist.length) return;
+  renderWire(hist);
+
+  const oldestLive = Math.min(...hist.map(b=>b.height));
+  if(odoGate > 0 && oldestLive > odoGate + 1 && !histWarned){
+    histWarned = true;
+    const missing = oldestLive - odoGate - 1;
+    $('odosub').innerHTML = `est. through block <b>${odoGate.toLocaleString()}</b> · ` +
+      `<span style="color:var(--brick)">${missing.toLocaleString()} blocks between there and live history are uncounted — re-run the builders and export.py</span>`;
+  }
+
+  let add = 0;
+  for(const b of hist) if(b.height > odoGate) add += b.data_bytes;
+  const t = odoBase + add;
+  if(t > odoTarget){
+    odoTarget = t;
+    if(odoShown === 0) odoShown = t;      // first paint: no count-up from zero
+    else {
+      $('odometer').classList.add('lurch');
+      setTimeout(()=>$('odometer').classList.remove('lurch'), 1600);
+    }
+  }
+}
+function odoFrame(){
+  if(odoTarget > odoShown){
+    odoShown = Math.min(odoTarget, odoShown + Math.max(1,(odoTarget-odoShown)*0.08));
+  }
+  if(odoTarget > 0){
+    const gb = odoShown/1e9;
+    $('odometer').innerHTML = gb.toFixed(3) +
+      `<span class="odounit"> GB</span>` +
+      `<div class="odounit" style="font-size:.28em;margin-top:4px">${Math.round(odoShown).toLocaleString()} bytes</div>`;
+  }
+  requestAnimationFrame(odoFrame);
+}
+
+// ---- blocks ------------------------------------------------------------
+const intensity = share => Math.min(1, Math.pow(share, 0.35));
+function fmtAge(s){
+  const m = Math.floor(s/60), ss = String(Math.max(0,Math.floor(s%60))).padStart(2,'0');
+  return `${m}:${ss}`;
+}
+function fmtBytes(b){
+  if(b >= 1e6) return (b/1e6).toFixed(2)+' MB';
+  if(b >= 1e3) return (b/1e3).toFixed(1)+' KB';
+  return b+' B';
+}
+function blockEl(b, isNew){
+  const el = document.createElement('div');
+  el.style.setProperty('--bobvar', ((b.height % 5) * 0.7).toFixed(1) + 's');
+  el.style.setProperty('--bobdir', (b.height % 2 ? 1 : -1));
+  el.addEventListener('animationend', e => {
+    if(e.animationName === 'emerge') el.classList.remove('emerge');
+  });
+  const pure = b.data_bytes === 0;
+  el.className = 'block ' + (pure ? 'pure' : 'data') + (isNew ? ' emerge' : '');
+  if(!pure) el.style.setProperty('--i', intensity(b.data_share));
+  const pct = (b.data_share*100);
+  el.innerHTML = `
+    <div>
+      <div class="h">${b.height.toLocaleString()}</div>
+      <div class="meta">${b.tx_count.toLocaleString()} txs<br>${fmtBytes(b.block_size)}</div>
+    </div>
+    <div>
+      <div class="share">${pure ? '0' : (pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1))}<span style="font-size:14px">%</span></div>
+      <div class="sharelabel">NON-MONETARY</div>
+      <div class="fam">${pure ? '' : (b.top_family || 'data')}${pure ? '' : ' · ' + fmtBytes(b.data_bytes)}</div>
+    </div>
+    ${b.miner ? `<div class="miner">⛏ ${b.miner}</div>` : ''}`;
+  el.title = `block ${b.height}\ndata ${b.data_bytes.toLocaleString()} B of ${b.block_size.toLocaleString()} B`;
+  return el;
+}
+
+function fire(){
+  const ring = $('ring'), flash = $('flash');
+  ring.classList.remove('fire'); flash.classList.remove('go');
+  void ring.offsetWidth;
+  ring.classList.add('fire'); flash.classList.add('go');
+  burst = 1;
+  if(!REDUCED) for(let i=0;i<9;i++) spawnBolt(i%2===0);
+}
+
+function setPressure(mem){
+  if(!mem){ PRESSURE = 0; $('pgauge').textContent = 'mempool —'; return; }
+  const vMB = Math.max(mem.vbytes / 1e6, 0.1);
+  PRESSURE = clamp(Math.log10(vMB) / Math.log10(300), 0, 1);
+  $('pgauge').innerHTML =
+    `mempool <b>${vMB.toFixed(1)} vMB</b> · charge <b>${Math.round(charge()*100)}%</b>`;
+}
+
+async function poll(){
+  let d;
+  try{
+    const r = await fetch('data/live.json?t='+Date.now());
+    if(!r.ok) throw 0;
+    d = await r.json();
+  }catch(e){ $('stale').style.display='inline-block'; return; }
+
+  const age = Date.now()/1000 - d.updated_at;
+  $('stale').style.display = age > 60 ? 'inline-block' : 'none';
+  $('beat').textContent = age < 60 ? 'live' : Math.floor(age)+'s ago';
+  $('tip').textContent = d.tip.toLocaleString();
+  setPressure(d.mempool);
+
+  const row = $('row');
+  const fresh = d.blocks.filter(b => !known.has(b.height));
+  if(fresh.length && !firstLoad){
+    fresh.sort((a,b)=>a.height-b.height).forEach((b,i)=>{
+      setTimeout(()=>{
+        fire();
+        row.prepend(blockEl(b, true));
+        while(row.children.length > 12) row.lastChild.remove();
+      }, i*1200);
+    });
+  } else if(firstLoad){
+    d.blocks.slice(0,12).reverse().forEach(b => row.prepend(blockEl(b, false)));
+    firstLoad = false;
+  }
+  d.blocks.forEach(b => known.add(b.height));
+  if(d.blocks.length) lastBlockTime = d.blocks[0].time;
+  $('win').textContent = d.blocks.length;
+  if(odoSeeded || odoGate === 0) setOdoTarget();
+
+  // chain context bar: the pile at true scale against the whole chain
+  if(d.chain_bytes > 0 && odoTarget > 0){
+    const pct = odoTarget / d.chain_bytes * 100;
+    $('chainbarwrap').style.display = 'block';
+    $('chaintitle').innerHTML =
+      `THE FULL BLOCKCHAIN · <b>${(d.chain_bytes/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
+    $('chainfill').style.width = pct.toFixed(2) + '%';
+    // data label sits just right of the amber fill (inside it if it grows huge)
+    $('chaindata').textContent =
+      `◼ non-monetary ${(odoTarget/1e9).toFixed(1)} GB · ${pct.toFixed(1)}%`;
+    $('chaindata').style.left = `calc(${Math.min(pct,60).toFixed(2)}% + 12px)`;
+    $('chainrest').textContent =
+      `monetary + overhead ${((d.chain_bytes-odoTarget)/1e9).toFixed(0)} GB · ${(100-pct).toFixed(1)}%`;
+  }
+
+  // trailing-24h accumulation from the poller's persistent history.
+  // Until a full day of history exists, the label shows the real span.
+  if(d.day){
+    const full = d.day.hours >= 23.5;
+    const perDay = d.day.data_bytes / d.day.hours * 24;
+    $('odostats').innerHTML =
+      `<span><span class="k">${full ? 'LAST 24 HOURS' : `LAST ${d.day.hours} H (BUILDING TO 24)`}</span><b>+${fmtBytes(d.day.data_bytes)}</b></span>`+
+      `<span><span class="k">PACE</span><b>${fmtBytes(perDay)} / day</b></span>`+
+      `<span><span class="k">AT THIS PACE</span><b>${(perDay*365/1e9).toFixed(1)} GB / year</b></span>`;
+  }
+}
+
+// ---- graffiti wire -----------------------------------------------------
+// SECURITY: message text is inserted via textContent exclusively, so any
+// markup in a payload renders as inert characters. URLs were already
+// redacted at the poller. Nothing here can become an image or a link.
+const WIRE_MAX = 14;
+const seenMsgs = new Set();
+function renderWire(hist){
+  const feed = $('wirefeed');
+  const msgs = [];
+  for(const b of hist.slice().sort((a,x)=>x.height-a.height)){
+    for(const g of (b.graffiti||[])){
+      const text = typeof g === 'string' ? g : g.t;
+      const src  = typeof g === 'string' ? 'op' : g.s;
+      const key = b.height + '|' + src + '|' + text;
+      msgs.push({h:b.height, text, src, key});
+      if(msgs.length >= WIRE_MAX) break;
+    }
+    if(msgs.length >= WIRE_MAX) break;
+  }
+  if(!msgs.length){
+    // say WHY it's empty: pre-wire history vs. genuinely quiet chain
+    const withKey = hist.filter(b => Array.isArray(b.graffiti)).length;
+    let note;
+    if(withKey === 0){
+      note = 'history predates the wire — restart the poller and it will backfill automatically';
+    } else {
+      note = `no legible human text in the last ${withKey.toLocaleString()} blocks — ` +
+             `genuine messages are rare (a handful per day); the wire fills as they land`;
+    }
+    if(!feed.querySelector('.wirefoot')){
+      const d = document.createElement('div');
+      d.className = 'wirefoot';
+      feed.appendChild(d);
+    }
+    feed.querySelector('.wirefoot').textContent = note;
+    return;
+  }
+  const ph = feed.querySelector('.wirefoot');
+  if(ph) ph.remove();
+  for(const m of msgs.slice().reverse()){
+    if(seenMsgs.has(m.key)) continue;
+    seenMsgs.add(m.key);
+    const row = document.createElement('div');
+    row.className = seenMsgs.size > WIRE_MAX ? 'msg fresh' : 'msg';
+    const bh = document.createElement('span');
+    bh.className = 'bh';
+    bh.textContent = m.h.toLocaleString();
+    const src = document.createElement('span');
+    src.className = 'src ' + (m.src === 'ord' ? 'ord' : 'op');
+    src.textContent = m.src === 'ord' ? 'INSCRIBED' : 'OP_RETURN';
+    const tx = document.createElement('span');
+    tx.className = 'tx';
+    tx.textContent = m.text;          // textContent — never innerHTML
+    row.append(bh, src, tx);
+    feed.prepend(row);
+    while(feed.children.length > WIRE_MAX) feed.lastChild.remove();
+  }
+}
+
+function tick(){
+  if(lastBlockTime){
+    const s = Date.now()/1000 - lastBlockTime;
+    $('counter').textContent = fmtAge(s);
+    $('counter').classList.toggle('overdue', s > 600);
+  }
+}
+
+// ---- the pile over time ------------------------------------------------
+// Same data as the odometer seed, drawn as the story: inscriptions from
+// Dec 2022, OP_RETURN joining the stack. GB axis for humans.
+function renderPile(){
+  if(!CUM || typeof echarts === 'undefined'){ $('pilechart').style.display='none'; return; }
+  const months = CUM.months;
+  const wGB = CUM.witness_content_mb.map(v=>+(v/1000).toFixed(2));
+  const oGB = CUM.opreturn_mb.map(v=>+(v/1000).toFixed(2));
+  const SHORT = {'First inscription':null,          // chart starts here — no label needed
+                 'BRC-20 launches':'BRC-20',
+                 'Runes launches':'Runes',
+                 'Core v30':'Core v30',
+                 'BIP-110 activation attempt':'BIP-110'};
+  const events = (CUM._meta?.events||[])
+    .filter(e=>months.includes(e.date.slice(0,7)) && SHORT[e.label]!==null);
+  const n = months.length;
+  const marks = events.map((e,i)=>{
+    const idx = months.indexOf(e.date.slice(0,7));
+    return {
+      xAxis: e.date.slice(0,7),
+      label:{formatter: SHORT[e.label]||e.label, color:'#E8E3D5',
+             fontFamily:"'IBM Plex Mono',monospace", fontSize:12, position:'end',
+             align: idx > n*0.88 ? 'right' : (idx < n*0.12 ? 'left' : 'center'),
+             padding:[6,0,0,0], backgroundColor:'rgba(11,14,20,.85)'},
+      lineStyle:{color:'#7B8494', type:'dashed', width:1}
+    };
+  });
+  const ch = echarts.init($('c_pile'));
+  ch.setOption({
+    backgroundColor:'transparent',
+    textStyle:{fontFamily:"'IBM Plex Mono',monospace", color:'#E8E3D5'},
+    grid:{left:14,right:14,top:64,bottom:10,containLabel:true},
+    tooltip:{trigger:'axis', backgroundColor:'#11161F', borderColor:'#1D2430',
+      textStyle:{color:'#E8E3D5',fontFamily:"'IBM Plex Mono',monospace",fontSize:12},
+      valueFormatter: v => v + ' GB'},
+    legend:{textStyle:{color:'#7B8494',fontFamily:"'IBM Plex Mono',monospace",fontSize:12},top:6},
+    xAxis:{type:'category', data:months,
+      axisLine:{lineStyle:{color:'#1D2430'}},
+      axisLabel:{color:'#7B8494', fontFamily:"'IBM Plex Mono',monospace", fontSize:11}},
+    yAxis:{type:'value',
+      axisLabel:{color:'#7B8494', fontFamily:"'IBM Plex Mono',monospace", fontSize:11,
+                 formatter:'{value} GB'},
+      splitLine:{lineStyle:{color:'#1D2430'}}},
+    series:[
+      {name:'Inscriptions', type:'line', stack:'pile',
+       areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
+       color:'#B44E46', data:wGB,
+       markLine:{symbol:'none', silent:true, data:marks}},
+      {name:'OP_RETURN', type:'line', stack:'pile',
+       areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
+       color:'#E0937B', data:oGB},
+    ]
+  });
+  addEventListener('resize', ()=>ch.resize());
+  const cov = CUM.coverage||{};
+  $('pilefoot').innerHTML =
+    `${CUM.estimated === false ? 'exact — every block parsed' : 'estimated from sampled blocks'}` +
+    ` · OP_RETURN measured from ${cov.opreturn?cov.opreturn[0]:'—'}`;
+}
+
+(async ()=>{
+  sizeVortex();
+  addEventListener('resize', sizeVortex);
+  await seedOdometer();
+  renderPile();
+  await poll();
+  setInterval(poll, 5000);
+  setInterval(tick, 1000);
+  lastT = performance.now();
+  requestAnimationFrame(frame);       // draws once even under reduced motion
+  requestAnimationFrame(odoFrame);
+})();
+</script>
+</body>
+</html>
