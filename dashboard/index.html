@@ -24,7 +24,6 @@
     --bg:#F5F2EA;        /* the page: warm off-white, not clinical white */
     --card:#FDFCF8;      /* a block's front face */
     --panel:#EBE7DB;     /* inset tracks and wells */
-    --void:#0A0E14;      /* the portal interior — the only dark surface */
     /* ink */
     --text:#191C22;
     --dim:#5C626D;
@@ -32,8 +31,9 @@
     --line-2:#C3BBA6;
     /* accents: readable as TEXT on --bg */
     --teal:#0F7A86; --amber:#8F5F0A; --brick:#A8433A; --blue:#3F63BE;
-    /* accents: lit variants, only ever used against --void */
-    --teal-lit:#4FB3BF; --amber-lit:#E09F3E;
+    /* lit variants — the arrival flash, which is the only thing left
+       that needs a colour brighter than the page can carry */
+    --amber-lit:#E09F3E;   /* the arrival flash */
     --mono:'IBM Plex Mono',monospace; --disp:'Big Shoulders Display',sans-serif;
     --bw:clamp(140px, 10.8vw, 172px);   /* one block, edge to edge */
 
@@ -79,7 +79,7 @@
     --bloom-blend:multiply; --bloom-op:.55;
     /* chart, read by JS via getComputedStyle */
     --c-grid:#E4DFD2; --c-axis:#C3BBA6; --c-tip:#FDFCF8;
-    --c-series-1:#A8433A; --c-series-2:#D9945F;
+    --c-series-1:#A8433A; --c-series-2:#D9945F; --c-series-3:#3F6E7D;
   }
 
   /* ---- DARK ---------------------------------------------------------
@@ -88,7 +88,7 @@
      shadows disappear — on a dark page a drop shadow is invisible and a
      glow is free. Only tokens here; no new rules, ever. */
   html[data-theme="dark"]{
-    --bg:#0B0E14; --card:#11161F; --panel:#151B26; --void:#070A10;
+    --bg:#0B0E14; --card:#11161F; --panel:#151B26;
     --text:#E8E3D5; --dim:#8A93A3; --line:#1D2430; --line-2:#2A3342;
     --teal:#4FB3BF; --amber:#E09F3E; --brick:#D45A4E; --blue:#6E92E0;
     --card-1:#19202C; --card-2:#111823; --card-3:#0B111A;
@@ -125,8 +125,9 @@
                     inset 0 0 14px rgba(232,227,213,.20);
     --bloom-blend:normal; --bloom-op:1;
     --c-grid:#1D2430; --c-axis:#1D2430; --c-tip:#11161F;
-    --c-series-1:#B44E46; --c-series-2:#E0937B;
+    --c-series-1:#B44E46; --c-series-2:#E0937B; --c-series-3:#6FA8B8;
   }
+  html{scroll-behavior:smooth}   /* the methodology anchors glide */
   *{box-sizing:border-box;margin:0}
   body{background:var(--bg);color:var(--text);font-family:var(--mono);
        overflow-x:hidden;min-height:100vh}
@@ -155,67 +156,14 @@
   /* The ring's two legends, one above and one below it. Same size and
      colour as each other on purpose: neither is the headline, they are the
      two inputs that make the ring behave the way it does. */
-  .ptimer{position:absolute;bottom:100%;left:0;right:0;margin-bottom:11px;
-          text-align:center;white-space:nowrap;
-          font-size:clamp(9.5px,.74vw,11.5px);
-          color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
-  .ptimer .k{opacity:.75;margin-left:5px}
   #counter{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums;
            font-size:clamp(15px,1.2vw,19px);letter-spacing:.04em}
   #counter.overdue{animation:overduePulse 2s ease-in-out infinite}
   @keyframes overduePulse{50%{color:var(--amber)}}
 
   /* stage */
-  #stage{position:relative;margin-top:26px;display:flex;align-items:center;
-         gap:0;min-height:calc(var(--bw) * 1.75 + 76px)}
+  #stage{position:relative;margin-top:22px;display:flex;align-items:center;gap:0}
 
-  /* portal */
-  /* Width and height are set independently, because tying both to one
-     multiplier meant every attempt to make it taller also made it fatter.
-     The mouth is 1.10 block-widths across — still wider than the thing
-     coming out of it — and 1.75 block-widths tall, against a block's real
-     on-screen column of ~1.25 (the square, plus its top face, plus the
-     miner label). That is a 40% difference in height, which reads; the
-     11% it had before did not. The box contains only the ring, so its
-     centre and the chain's centre are the same line. */
-  #portal{position:relative;flex:0 0 calc(var(--bw) * 1.10);
-          width:calc(var(--bw) * 1.10)}
-  /* Out of the flow so the portal box IS the ring — anything in the
-     column would shift the mouth off the chain's centre line. Anchored
-     by its top edge, so extra text grows downward into empty space
-     instead of upward into the ellipse. */
-  .pgauge{position:absolute;top:100%;left:0;right:0;margin-top:11px;
-        text-align:center;white-space:nowrap;
-        font-size:clamp(9.5px,.74vw,11.5px);color:var(--dim);
-        letter-spacing:.1em;text-transform:uppercase}
-  .pgauge .k{opacity:.75;margin-left:5px}
-  .pgauge b{color:var(--text);font-weight:500}
-  .pgauge .q{color:var(--amber)}
-  #ring{position:relative;flex:0 0 auto;
-        width:100%;height:calc(var(--bw) * 1.75);border-radius:50%;
-        border:2px solid var(--teal);overflow:hidden;background:var(--void);
-        box-shadow:var(--ring-shadow);
-        animation:idle 4.5s ease-in-out infinite}
-  @keyframes idle{50%{box-shadow:var(--ring-shadow-2)}}
-  /* The exit side. Blocks travel rightward out of the mouth, so the right
-     edge carries a warmer bloom — it points the eye down the chain and
-     gives the ellipse a direction it did not have. */
-  #portal::after{content:"";position:absolute;right:2%;
-        top:calc(var(--bw) * 0.875);
-        transform:translateY(-50%);width:16%;
-        height:calc(var(--bw) * 0.72);border-radius:50%;
-        background:radial-gradient(closest-side,rgba(79,179,191,.55),
-                   rgba(79,179,191,0) 72%);
-        filter:blur(4px);pointer-events:none;
-        mix-blend-mode:var(--bloom-blend);opacity:var(--bloom-op)}
-  #ring.fire{animation:fire .9s ease-out}
-  @keyframes fire{
-    0%{box-shadow:0 0 30px rgba(79,179,191,.5), inset 0 0 30px rgba(79,179,191,.4)}
-    30%{box-shadow:0 0 90px 24px rgba(232,227,213,.9), inset 0 0 60px rgba(232,227,213,.8);
-        border-color:var(--text)}
-    100%{box-shadow:0 0 24px rgba(79,179,191,.35), inset 0 0 24px rgba(79,179,191,.25)}
-  }
-  #vortex{position:absolute;inset:0}
   #flash{position:fixed;inset:0;background:var(--amber-lit);opacity:0;
          pointer-events:none;z-index:50}
   #flash.go{animation:flash .5s ease-out}
@@ -227,7 +175,7 @@
      than the viewport — which is exactly how the chain escaped before.
      The right-edge fade is the affordance that says "there is more". */
   #row{display:flex;gap:clamp(20px,1.9vw,30px);align-items:center;
-       overflow-x:auto;padding:46px 0 46px 26px;flex:1 1 auto;min-width:0;
+       overflow-x:auto;padding:22px 0 34px 26px;flex:1 1 auto;min-width:0;
        scrollbar-width:none;-ms-overflow-style:none;
        -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 20px,
                           #000 calc(100% - 64px),transparent 100%);
@@ -371,19 +319,40 @@
          font-size:clamp(9.5px,.76vw,11.5px);color:var(--dim);
          letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
 
-  .block.emerge{animation:emerge 1s cubic-bezier(.2,1.4,.4,1)}
-  @keyframes emerge{
-    0%{transform:translateX(-120px) scale(.15) rotate(-6deg);opacity:0}
-    55%{opacity:1}
-    100%{transform:none}
+  /* ---- the block that has not arrived yet ---------------------------
+     Same size and shape as its neighbours, but drawn as an outline: it is
+     a slot, not a solid. It carries only what is actually known about the
+     next block — how long we have waited, and what is queued. */
+  .block.pending{background:none;border:1.5px dashed var(--line-2);
+                 box-shadow:none;animation:none;
+                 justify-content:center;gap:2px}
+  .block.pending::before,.block.pending::after{display:none}
+  .pend-k{font-size:clamp(8px,.62vw,9.5px);letter-spacing:.14em;
+          color:var(--dim);opacity:.8}
+  .pend-t{font-family:var(--mono);font-weight:500;
+          font-size:clamp(19px,1.6vw,25px);color:var(--text);
+          font-variant-numeric:tabular-nums;line-height:1.1;margin:2px 0 6px}
+  .pend-t.overdue{color:var(--amber)}
+  .pend-m{font-size:clamp(9px,.72vw,11px);color:var(--dim);line-height:1.7}
+  .pend-m b{color:var(--text);font-weight:500}
+
+  /* A block no longer flies in from a portal — it settles into the space
+     the pending slot was already holding. */
+  .block.settle{animation:settle .7s cubic-bezier(.2,.9,.3,1)}
+  @keyframes settle{
+    0%{opacity:0;transform:translateY(-6px) scale(.97)}
+    100%{opacity:1;transform:none}
   }
-  .block.emerge.heavy{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+
+  /* The tier flash still marks what kind of block landed; it just rides
+     the settle animation now instead of a flight across the screen. */
+  .block.settle.heavy{animation:settle .7s cubic-bezier(.2,.9,.3,1),
                       dataBirth 1.6s ease-out}
   @keyframes dataBirth{30%{filter:var(--birth-heavy)}}
-  .block.emerge.light{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+  .block.settle.light{animation:settle .7s cubic-bezier(.2,.9,.3,1),
                       coolBirth 1.6s ease-out}
   @keyframes coolBirth{30%{filter:var(--birth-light)}}
-  .block.emerge.pure{animation:emerge 1s cubic-bezier(.2,1.4,.4,1),
+  .block.settle.pure{animation:settle .7s cubic-bezier(.2,.9,.3,1),
                      pureBirth 2.6s ease-out}
   @keyframes pureBirth{
     0%{filter:var(--birth-pure-a)}
@@ -392,11 +361,42 @@
   }
 
   /* odometer */
-  /* Same treatment as .odosublabel: a centred caption belonging to the
+  /* A centred caption belonging to the
      heading above it, not a line of body text. */
   .sectionsub{font-size:11px;color:var(--dim);opacity:.8;margin-top:6px;
               max-width:104ch;margin-left:auto;margin-right:auto;
               line-height:1.6;text-align:center}
+
+  /* A caption states the claim; this link carries whoever wants the rule
+     behind it down to the methodology. Progressive disclosure, so the
+     visuals stay short without the reasoning being lost. */
+  .deeper{color:var(--teal);text-decoration:none;border-bottom:1px dotted;
+          white-space:nowrap}
+  .deeper:hover{color:var(--text)}
+
+  /* Follows a short section, so it does not need the full gap — 56px on
+     top of that section's own trailing space read as a dead band. */
+  #method{margin-top:38px}
+  /* The heading inside already carries the rule and the spacing. Without
+     this the section drew a second one and left a dead band between. */
+  #method .sectionlead{margin-top:0}
+  /* Prose is left-aligned and measured. The centred captions elsewhere get
+     away with it because they are one line; a paragraph does not. */
+  /* 420px minimum gives TWO columns at full width (~80 characters a line),
+     not three at ~40. Prose needs the measure; a caption does not. */
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
+         gap:28px 46px;margin:30px auto 0;max-width:1080px;text-align:left}
+  .mblock h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+             color:var(--text);font-weight:500;margin-bottom:9px}
+  .mblock p{font-size:12px;line-height:1.8;color:var(--dim);margin-bottom:11px}
+  .mblock b{color:var(--text);font-weight:500}
+  /* The actual rule, quoted rather than described. */
+  .rule{display:block;font-size:12px;line-height:1.6;background:var(--panel);
+        border-left:2px solid var(--t-amber);padding:9px 13px;margin:11px 0;
+        color:var(--text);border-radius:0 3px 3px 0;overflow-x:auto}
+  .mfoot{max-width:1080px;margin:26px auto 0;text-align:left;font-size:11px;
+         color:var(--dim);opacity:.85;line-height:1.7}
+
   /* Same shape as .odolabel and .chartlabel — three sections, three
      headings that look alike. The rule above it is what marks the change
      of tense from history to present. */
@@ -405,11 +405,14 @@
                font-size:13px;color:var(--dim);letter-spacing:.18em;
                text-align:center}
   #cleanbar{display:flex;justify-content:space-between;align-items:baseline;
-            gap:24px;flex-wrap:wrap;margin-top:14px;padding-top:12px;
-            border-top:1px solid var(--line);font-size:13px;color:var(--dim)}
+            gap:24px;flex-wrap:wrap;margin-top:14px;
+            font-size:13px;color:var(--dim)}
   #cleanstat b{color:var(--text);font-weight:500}
+  #daystat b{color:var(--text);font-weight:500}
   #cleanstat .big{color:var(--amber);font-size:17px;font-weight:500}
-  #tierbar{display:flex;justify-content:space-between;align-items:baseline;
+  /* One child now that the median note is gone, so space-between would be
+     a lie waiting to break if anything is ever added beside it. */
+  #tierbar{display:flex;align-items:baseline;
            gap:24px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--dim)}
   .legend-keys{display:flex;gap:20px;flex-wrap:wrap;font-size:11px;letter-spacing:.04em}
   .key{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
@@ -421,8 +424,42 @@
   .sw.light{border:1px solid var(--t-blue);background:var(--t-blue)}
   .sw.typ{border:1px solid var(--t-amber);background:var(--t-amber)}
   .sw.data{border:1px solid var(--t-brick);background:var(--t-brick)}
-  .tiernote{font-size:11px;color:var(--dim);text-align:right}
-  .tiernote b{color:var(--text);font-weight:500}
+  /* Not a centrepiece: one bar, a legend, and the finding in a line.
+     The detail lives in the methodology table below. */
+  #madeof{margin-top:52px;padding-top:30px;padding-bottom:0;
+          border-top:1px solid var(--line-2);text-align:center}
+  /* No colour. The tier palette is spoken for — brick means "above
+     typical", teal means "clean" — so borrowing it here asserts a
+     relationship between a media type and a block grade that does not
+     exist. Rank and size carry the hierarchy instead.
+
+     Counts, not shares. "880 MB of text" is forgettable; "116 million
+     text inscriptions" is the same fact and is not, and on a monetary
+     network the count is the thing that reads as absurd. */
+  #mo_parts{display:flex;justify-content:center;flex-wrap:wrap;
+            gap:14px 40px;margin-top:24px;align-items:baseline}
+  .mpart{display:flex;flex-direction:column;align-items:center;gap:3px}
+  .mpart .k{font-size:11px;letter-spacing:.13em;color:var(--dim)}
+  .mpart b{font-family:var(--mono);font-weight:500;color:var(--text);
+           font-size:clamp(16px,1.5vw,21px);font-variant-numeric:tabular-nums}
+  .mpart span{font-size:11px;color:var(--dim);opacity:.85}
+  /* The leader is genuinely dominant, so it is set larger rather than
+     merely placed first. */
+  .mpart:first-child b{font-size:clamp(21px,2.1vw,30px)}
+  .mpart:first-child .k{color:var(--text)}
+
+
+  /* The three contributions, directly under the number they add up to.
+     Same colours as the chart bands, so the connection is visual rather
+     than stated. */
+  #odoparts{display:flex;justify-content:center;flex-wrap:wrap;
+            gap:8px 34px;margin-top:18px}
+  .opart{display:flex;flex-direction:column;align-items:center;gap:2px}
+  .opart .k{font-size:11px;color:var(--dim);letter-spacing:.12em}
+  .opart b{font-family:var(--mono);font-size:clamp(15px,1.35vw,19px);
+           color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+  .opart span{font-size:11px;color:var(--dim);opacity:.85}
+
   #odowrap{margin-top:34px;text-align:center;
            border-bottom:1px solid var(--line-2);padding:8px 0 30px}
   /* Label, then value, then footnote. The caveat used to sit between the
@@ -430,30 +467,12 @@
      qualification, then finally the figure the whole section exists to
      report. A footnote goes after the thing it qualifies. */
   .odolabel{font-size:13px;color:var(--dim);letter-spacing:.18em}
-  .odosublabel{font-size:11px;color:var(--dim);opacity:.8;margin-top:14px;
-               max-width:110ch;margin-left:auto;margin-right:auto;line-height:1.6}
   #odometer{font-family:var(--disp);font-weight:800;
             font-size:clamp(38px,6.5vw,76px);line-height:1.1;letter-spacing:1px;
             font-variant-numeric:tabular-nums;margin-top:10px;
             transition:color .3s}
   #odometer.lurch{color:var(--amber)}
   .odounit{font-size:.32em;color:var(--dim);letter-spacing:2px}
-  /* Three stats, three DIFFERENT facts. The old row showed "last 24
-     hours" beside "pace / day", which is the same measurement twice —
-     pace IS the 24h figure extrapolated. The freed column now carries
-     the stock figure (share of the whole chain), so the row reads:
-     what arrived, where that leads, where it already stands. */
-  .odostats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-            max-width:780px;margin:26px auto 0;color:var(--dim);
-            text-align:center}
-  .odostats > span{padding:2px 14px;border-left:1px solid var(--line)}
-  .odostats > span:first-child{border-left:0}
-  .odostats b{display:block;color:var(--text);font-weight:500;
-              font-size:clamp(17px,1.45vw,22px);margin-top:6px;
-              font-variant-numeric:tabular-nums}
-  .odostats .k{display:block;font-size:10px;letter-spacing:.14em;
-               line-height:1.5}
-
   /* Labels sit UNDER the bar, not inside it. At ~5% the slice is thinner
      than its own caption, so anything printed on top of it either
      overlaps the remainder or floats away from what it names. */
@@ -478,6 +497,7 @@
   .odosub b{color:var(--text);font-weight:500}
 
   #pilechart{margin-top:36px}
+
   .chartlabel{font-size:13px;color:var(--dim);letter-spacing:.18em;text-align:center}
   #c_pile{height:420px;margin-top:14px}
   .missing{display:flex;align-items:center;justify-content:center;height:100%;
@@ -488,15 +508,8 @@
   .legend{margin-top:20px;font-size:13px;color:var(--dim);max-width:90ch;line-height:1.7}
   .legend b{color:var(--text);font-weight:500}
   /* --- breakpoints ------------------------------------------------- */
-  /* The portal goes first — it is atmosphere, and atmosphere should not
-     cost a phone half its screen. */
   @media (max-width:900px){
-    #stage{flex-direction:column;align-items:stretch;min-height:0}
-    #portal{width:auto;flex:0 0 auto;align-items:flex-start}
-    #ring,#portal::after{display:none}
-    .pgauge,.ptimer{position:static;left:auto;right:auto;bottom:auto;
-            margin:0 0 8px;text-align:left}
-    .pgauge .k,.ptimer .k{margin-left:5px;margin-right:0}
+    #stage{min-height:0}
     #row{padding-left:0;
          -webkit-mask-image:linear-gradient(90deg,#000 0,
                             #000 calc(100% - 48px),transparent 100%);
@@ -504,8 +517,6 @@
                     #000 calc(100% - 48px),transparent 100%)}
   }
   @media (max-width:700px){
-    .odostats{grid-template-columns:1fr!important;gap:16px}
-    .odostats > span{border-left:0!important;padding-left:0!important}
     #chainlegend{justify-content:flex-start!important}
     #cleanbar,#tierbar{gap:12px}
   }
@@ -522,22 +533,17 @@
       <p class="tagline">non-monetary data on Bitcoin, measured from a full node</p>
     </div>
     <span class="headright">
-      <span class="stat">tip <b id="tip">—</b> · showing <b id="win">—</b> blocks
-        · data <b id="beat">—</b></span>
+      <span class="stat">tip <b id="tip">—</b> · data <b id="beat">—</b></span>
       <button id="themetoggle" type="button"></button>
     </span>
     <span id="stale">FEED INTERRUPTED — showing the last data received</span>
   </header>
-  </div>
-
 
   <div id="odowrap">
     <div class="odolabel">EVERY NON-MONETARY BYTE A NODE MUST STORE</div>
+    <div class="odosub" id="odosub"></div>
     <div id="odometer">—</div>
-    <div class="odosublabel">every full node downloads, verifies and keeps all
-      of it. Counted differently from the block grades below: this includes
-      ordinary OP_RETURN, because storage does not care which rule let the
-      bytes in.</div>
+    <div id="odoparts"></div>
     <div id="chainbarwrap">
       <div id="chaintitle"></div>
       <div id="chainbar"><div id="chainfill"></div></div>
@@ -546,9 +552,10 @@
         <span class="cl"><i class="csw rest"></i><span id="chainrest"></span></span>
       </div>
     </div>
-    <div class="odostats" id="odostats"></div>
-    <div class="odosub" id="odosub">loading historical totals…</div>
+
   </div>
+
+
 
 
   <section id="pilechart">
@@ -558,26 +565,18 @@
   </section>
 
 
-  <div class="sectionlead">AS IT HAPPENS · THE LATEST BLOCKS, LIVE FROM THE NODE</div>
+
+  <div class="sectionlead">AS IT HAPPENS · THE LATEST BLOCKS FROM THIS NODE</div>
 
 
-  <div class="sectionsub" id="blockmeasure">each block graded by how much of it
-    is data the old rules would have blocked — inscription envelopes, plus
-    OP_RETURN beyond the old 83-byte allowance</div>
 
 
   <div id="stage">
-    <div id="portal">
-      <!-- caption sits under the aperture; the ring is the graphic -->
-      <div class="ptimer"><b id="counter">—:—</b><span class="k">SINCE LAST BLOCK</span></div>
-      <div id="ring" title="The ring turns faster as the mempool fills and as the wait for the next block grows. It is a mood, not a measurement."><canvas id="vortex"></canvas></div>
-      <div class="pgauge" id="pgauge"><b>—</b><span class="k">IN THE MEMPOOL</span></div>
-    </div>
     <div id="row"></div>
   </div>
 
 
-  <div id="cleanbar"><span id="cleanstat"></span></div>
+  <div id="cleanbar"><span id="cleanstat"></span><span id="daystat"></span></div>
 
 
   <div id="tierbar">
@@ -587,9 +586,82 @@
       <span class="key"><i class="sw typ"></i>TYPICAL <em id="r_mid">—</em></span>
       <span class="key"><i class="sw data"></i>ABOVE TYPICAL <em id="r_high">—</em></span>
     </span>
-    <span class="tiernote" id="tiernote"></span>
+  </div>
+
+  <section id="madeof">
+    <div class="chartlabel">WHAT THE PILE IS MADE OF</div>
+    <div class="sectionsub" id="mo_line"></div>
+    <div id="mo_parts"></div>
+  </section>
 
 
+  <section id="method">
+    <div class="sectionlead">HOW THIS IS COUNTED</div>
+    <div class="sectionsub">every figure on this page comes from parsing each
+      block on a Bitcoin Knots node — no indexers, no third-party APIs, no
+      sampling</div>
+
+    <div class="mgrid">
+
+      <div class="mblock">
+        <h4>Inscriptions</h4>
+        <p>Data written into a part of a transaction that can never run — a
+          script branch that is always skipped. It cannot affect whether a
+          payment is valid, which leaves it one purpose: carrying bytes.</p>
+        <code class="rule">OP_FALSE OP_IF &lt;data&gt; OP_ENDIF</code>
+        <p>Finding them needs no list of protocols and no guess at intent.
+          The shape of the script is the whole test, so it caught the first
+          inscription in 2022 and will catch whatever is invented next.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>OP_RETURN</h4>
+        <p>A deliberate way to attach data to a transaction, added in 2014.
+          The output is provably unspendable, so a node never keeps it in
+          working memory — it costs block space and nothing else.</p>
+        <p>Only the OP_RETURN outputs are counted, not the transactions
+          carrying them. Unlike an inscription, a transaction with an
+          OP_RETURN is usually moving money as well, and charging the whole
+          thing to the data would count that as non-monetary too.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>Chainstate</h4>
+        <p>Every inscription sits on a tiny output, usually a few hundred
+          satoshis. That output stays in every node's working state until
+          somebody spends it — and spending it costs more in fees than it
+          holds, so it stays.</p>
+        <p>This is the part pruning cannot remove. A node can delete old
+          blocks and keep validating; it cannot delete its record of what
+          currently exists. It is the smallest number on this page and the
+          only permanent one.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>What this does not measure</h4>
+        <p><b>These were relay rules, not consensus.</b> Miners taking
+          transactions directly could always include what the defaults
+          refused, so "beyond old limits" is not the same as "would not
+          exist".</p>
+        <p><b>Data can move.</b> Witness bytes are cheaper than output
+          bytes, so data blocked from one route may take another rather
+          than disappear.</p>
+        <p><b>Some carriers are not detected.</b> Protocols that hide data
+          in fake public keys are counted here as ordinary spending.</p>
+        <p><b>The total is a floor.</b> Blocks between the last full scan
+          and the live feed are not counted yet, so the figure understates
+          rather than overstates.</p>
+      </div>
+
+    </div>
+
+    <p class="mfoot">Every block since the first inscription is parsed on a
+      Bitcoin Knots node — no indexers, no third-party data, no sampling.
+      The classifiers are covered by tests that run without a node, and
+      every block is checked against a measure the node reports
+      independently. Source, tests and the full method:
+      <a class="deeper" href="https://github.com/bretstu/thepile">github.com/bretstu/thepile</a>.</p>
+  </section>
 </main>
 
 <script>
@@ -617,127 +689,6 @@ const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
 let known = new Set();
 let lastBlockTime = null;
 let firstLoad = true;
-let PRESSURE = 0;         // mempool depth, 0..1 log scale
-let TIERS = null;         // quartile boundaries, frozen at export time
-let burst = 0;            // spikes to 1 when a block fires, decays
-
-// ---- combined charge: crescendo ---------------------------------------
-// Time since last block is the lead instrument (0 -> 1 over 15 min,
-// eased so the last minutes climb hardest); mempool depth is the
-// backing layer. A floor keeps the portal alive even at zero.
-function charge(){
-  const elapsed = lastBlockTime ? Date.now()/1000 - lastBlockTime : 0;
-  const timeF = Math.pow(clamp(elapsed/900, 0, 1), 1.35);
-  return clamp(0.12 + 0.55*timeF + 0.33*PRESSURE, 0, 1);
-}
-
-// ---- vortex ------------------------------------------------------------
-// Particles spiral inward on an elliptical field — faster, brighter and
-// more amber as charge rises. Ripple rings breathe outward from the
-// throat. Lightning frequency rides charge squared.
-const cv = $('vortex');
-const ctx = cv.getContext('2d');
-let W=0, H=0, CX=0, CY=0, RX=0, RY=0;
-function sizeVortex(){
-  const r = $('ring');
-  W = cv.width = r.clientWidth; H = cv.height = r.clientHeight;
-  CX = W/2; CY = H/2; RX = W/2 - 6; RY = H/2 - 6;
-}
-
-const P = [];               // particles
-for(let i=0;i<170;i++) P.push({
-  a: Math.random()*Math.PI*2,
-  r: Math.pow(Math.random(), .7),
-  w: .6 + Math.random()*.8,
-  pa: 0, pr: 0,
-});
-const bolts = [];
-let nextBolt = performance.now() + 2500;
-
-function spawnBolt(strong){
-  const x0 = W*(0.25+Math.random()*0.5), y0 = H*0.06;
-  const pts = [[x0, y0]];
-  let x = x0, y = y0;
-  const segs = 6 + (Math.random()*5|0);
-  for(let i=0;i<segs;i++){
-    x += (Math.random()-0.5) * W*0.34;
-    y += H*0.88/segs * (0.6+Math.random()*0.8);
-    pts.push([clamp(x,4,W-4), Math.min(H-4,y)]);
-  }
-  bolts.push({pts, life: 1, strong});
-}
-
-let lastT = performance.now();
-function frame(now){
-  const dt = Math.min(0.05, (now - lastT)/1000); lastT = now;
-  const I = charge();
-  burst = Math.max(0, burst - dt*1.4);
-
-  ctx.clearRect(0,0,W,H);
-
-  // particles: elliptical vortex, inner shear, spiral-in
-  for(const p of P){
-    p.pa = p.a; p.pr = p.r;
-    p.a += dt * p.w * lerp(0.5, 4.2, I) * (1.7 - p.r) * (1 + burst*5);
-    p.r -= dt * (lerp(.012, .11, I) + burst*1.3);
-    if(p.r < 0.05){ p.r = 1; p.a = Math.random()*Math.PI*2; p.pa=p.a; p.pr=p.r; }
-    const x1 = CX + Math.cos(p.pa)*RX*p.pr, y1 = CY + Math.sin(p.pa)*RY*p.pr;
-    const x2 = CX + Math.cos(p.a)*RX*p.r,  y2 = CY + Math.sin(p.a)*RY*p.r;
-    const heat = clamp(I*0.75 + (1-p.r)*0.35, 0, 1);
-    const cr = lerp(79,224,heat)|0, cg = lerp(179,159,heat)|0, cb = lerp(191,62,heat)|0;
-    ctx.strokeStyle = `rgba(${cr},${cg},${cb},${(0.30+0.55*I).toFixed(2)})`;
-    ctx.lineWidth = lerp(1, 2, I);
-    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
-  }
-
-  // The throat. Tightened and lightened: at .95 over 75% of the radius it
-  // was not a throat, it was a lid, and it hid the spiral almost entirely.
-  const g = ctx.createRadialGradient(CX,CY,2,CX,CY,RY*.55);
-  g.addColorStop(0, `rgba(7,10,16,${(.80 - burst*.45).toFixed(2)})`);
-  g.addColorStop(.6, 'rgba(7,10,16,.30)');
-  g.addColorStop(1, 'rgba(7,10,16,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0,0,W,H);
-
-  // A light at the bottom of it, so the centre is a depth rather than a
-  // hole. Cool when idle, parchment-white as the charge builds.
-  const Icore = clamp(I + burst, 0, 1);
-  const core = ctx.createRadialGradient(CX,CY,0,CX,CY,RY*.34);
-  core.addColorStop(0, `rgba(${Icore > .55 ? '240,232,214' : '138,212,221'},`
-                     + `${(.10 + .34*Icore).toFixed(2)})`);
-  core.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = core;
-  ctx.fillRect(0,0,W,H);
-
-  // lightning
-  const Ieff = Icore;                 // same charge, already clamped above
-  if(now > nextBolt && Ieff > 0.1){
-    spawnBolt(Math.random() < Ieff*0.55);
-    const rate = 0.05 + Ieff*Ieff*3.4;
-    nextBolt = now + (-Math.log(1-Math.random())/rate)*1000;
-  }
-  for(let i=bolts.length-1;i>=0;i--){
-    const b = bolts[i];
-    ctx.save();
-    ctx.globalAlpha = b.life * (b.strong?1:.6);
-    ctx.strokeStyle = b.strong ? '#F2EDE0' : '#8AD4DD';
-    ctx.lineWidth = b.strong ? 2.2 : 1.3;
-    ctx.shadowColor = b.strong ? '#E09F3E' : '#4FB3BF';
-    ctx.shadowBlur = 14;
-    ctx.beginPath();
-    b.pts.forEach((p,j)=> j ? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]));
-    ctx.stroke();
-    ctx.restore();
-    b.life -= 0.16;
-    if(b.life <= 0) bolts.splice(i,1);
-  }
-
-  // ring border heat follows charge
-  $('ring').style.borderColor = I > .6 ? 'var(--amber)' : 'var(--teal)';
-
-  if(!REDUCED) requestAnimationFrame(frame);
-}
-
 // ---- odometer ----------------------------------------------------------
 // Seeded from the historical dataset (dashboard/data/cumulative.json,
 // written by export.py), then incremented by exact live blocks above the
@@ -752,6 +703,8 @@ function plainDays(d){
 }
 
 let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
+// Shown on hover over the headline rather than printed under it.
+let ODO_PROVENANCE = '';
 let CUM = null;
 async function seedOdometer(){
   try{
@@ -765,11 +718,12 @@ async function seedOdometer(){
       if(lc.block){
         const days = (Date.now()/1000 - lc.block.time) / 86400;
         el.innerHTML =
-          `<span class="big">${plainDays(days)}</span> since a block contained nothing the old rules would have blocked ` +
-          `<span style="color:var(--dim)">· height ${lc.block.height.toLocaleString()}` +
-          (lc.unmeasured_above > 1000
-            ? ` · ${(lc.unmeasured_above/1000).toFixed(0)}k newer blocks unscanned` : '') +
-          `</span>`;
+          `<span class="big">${plainDays(days)}</span> since a block contained ` +
+          `nothing the old rules would have blocked`;
+        el.title = `Block ${lc.block.height.toLocaleString()}`
+          + (lc.unmeasured_above > 1000
+             ? `. ${(lc.unmeasured_above/1000).toFixed(0)}k newer blocks are not `
+               + `yet scanned, so a more recent one may exist.` : '.');
       } else {
         el.innerHTML = `<span class="big">no data-free block</span> anywhere in the scanned range`;
       }
@@ -790,10 +744,13 @@ async function seedOdometer(){
       $('r_low').textContent  = `< ${pc(t.p25)}`;
       $('r_mid').textContent  = `${pc(t.p25)}–${pc(t.p75)}`;
       $('r_high').textContent = `> ${pc(t.p75)}`;
-      $('tiernote').innerHTML =
-        `median block <b>${pc(t.median)}</b> · bands set by the last ` +
-        `${(t.window_blocks/1000).toFixed(0)},000 blocks ` +
-        `(${nice(t.derived_from[0])} – ${nice(t.derived_from[1])})`;
+      // On the legend it describes, not beside it. The bands are the
+      // thing a reader sees; how they were derived is what they ask only
+      // if they doubt them.
+      $('tierbar').title =
+        `Bands set by the last ${t.window_blocks.toLocaleString()} blocks `
+        + `(${nice(t.derived_from[0])} – ${nice(t.derived_from[1])}). `
+        + `Median block ${pc(t.median)}.`;
       // any blocks already drawn used the fallback floor; restyle them
       // Blocks drawn before the thresholds arrived all defaulted to the
       // top tier; reclassify them now that the bands are known.
@@ -808,16 +765,27 @@ async function seedOdometer(){
     // (the full data-carrying construct nodes download), not content
     // bytes. Mixing the two made the odometer outrun its own baseline.
     const wmb = c.witness_envelope_mb, omb = c.opreturn_mb;
-    odoBase = ((wmb?.[wmb.length-1]||0) + (omb?.[omb.length-1]||0)) * 1e6;
+    // Block bytes PLUS chainstate. A node holds both at once, in two
+    // separate databases, so they add rather than overlap — see the
+    // methodology. Live blocks top up the block-bytes side only; the
+    // chainstate share moves when the dataset is rebuilt, which is slow
+    // enough not to matter between exports.
+    const bog = c.utxo?.insc_bogo_standing;
+    const csBytes = (bog && c.chainstate?.bytes_per_bogo)
+      ? bog[bog.length-1] * c.chainstate.bytes_per_bogo : 0;
+    odoBase = ((wmb?.[wmb.length-1]||0) + (omb?.[omb.length-1]||0)) * 1e6
+              + csBytes;
     const ds = c._meta?.datasets || {};
     odoGate = Math.max(ds.witness?.height_range?.[1] || 0,
                        ds.opreturn?.height_range?.[1] || 0);
     odoSeeded = true;
-    $('odosub').innerHTML = CUM.estimated === false
-      ? `every block parsed through <b>${odoGate.toLocaleString()}</b>, ` +
-        `live blocks counted since`
-      : `estimated through block <b>${odoGate.toLocaleString()}</b>, ` +
-        `counted exactly since`;
+    // Silence when healthy. The claim still exists — on the odometer's
+    // tooltip and in the methodology — but a headline number does not
+    // need a permanent footnote restating that it is real.
+    $('odosub').textContent = '';
+    ODO_PROVENANCE = CUM.estimated === false
+      ? `every block parsed through ${odoGate.toLocaleString()}, live blocks counted since`
+      : `estimated through block ${odoGate.toLocaleString()}, counted exactly since`;
   }catch(e){
     odoBase = 0; odoGate = 0; odoSeeded = false;
     $('odosub').textContent =
@@ -847,18 +815,16 @@ async function setOdoTarget(){
     histWarned = true;
     const missing = oldestLive - odoGate - 1;
     const stale = missing > 1500;          // ~10 days of chain
-    // At ordinary lag the gap is ~0.05% of the total — inside the rounding
-    // of the figure it sits under, so it belongs in the tooltip, not the
-    // caption. It earns the caption only once it could move the number.
-    const base = `every block parsed through <b>${odoGate.toLocaleString()}</b>, `
-               + `live blocks counted since`;
+    // Silent when healthy. At ordinary lag the gap is ~0.05% of the total,
+    // well inside the rounding of the figure it would sit under, so it
+    // says nothing. It speaks only once it could actually move the number.
+    ODO_PROVENANCE += `\n${missing.toLocaleString()} blocks between the last `
+      + `full scan and the live window are not yet counted, so the total is `
+      + `a floor.`;
     $('odosub').innerHTML = stale
-      ? base + ` · <span style="color:var(--brick)">${missing.toLocaleString()}`
-             + ` blocks in between are not yet counted</span>`
-      : base;
-    $('odosub').title =
-      `${missing.toLocaleString()} blocks between the last full scan and the `
-      + `live window are not yet counted, so the total above is a floor.`;
+      ? `<span style="color:var(--brick)">${missing.toLocaleString()} blocks `
+        + `not yet counted — the total below is behind</span>`
+      : '';
     if(stale) console.warn(
       `[the pile] ${missing.toLocaleString()} blocks uncounted — ` +
       `re-run the builders to a current height, then export.py`);
@@ -883,8 +849,12 @@ function odoFrame(){
   if(odoTarget > 0){
     const gb = odoShown/1e9;
     $('odometer').innerHTML = gb.toFixed(2) +
-      `<span class="odounit"> GB</span>` +
-      `<div class="odounit" style="font-size:.28em;margin-top:4px">${Math.round(odoShown).toLocaleString()} bytes</div>`;
+      `<span class="odounit"> GB</span>`;
+    // The exact byte count is available on hover rather than printed. It
+    // was ten digits nobody reads, wedged between the headline and the
+    // breakdown that explains it.
+    $('odometer').title = `${Math.round(odoShown).toLocaleString()} bytes`
+      + (ODO_PROVENANCE ? `\n${ODO_PROVENANCE}` : '');
   }
   requestAnimationFrame(odoFrame);
 }
@@ -988,14 +958,44 @@ function pureLabel(){
   return `1 IN EVERY ${r.oneIn} BLOCKS`;
 }
 
+// THE PENDING SLOT.
+//
+// Held permanently at the head of the row, so the chain always shows the
+// block that has not arrived yet. Everything in it is measured: elapsed
+// time from the last block's own timestamp, and the mempool from
+// getmempoolinfo. Nothing here is decoration.
+let MEMPOOL_VMB = null;
+
+function pendingEl(){
+  const el = document.createElement('div');
+  el.className = 'block pending';
+  el.id = 'pending';
+  el.innerHTML =
+    `<div class="pend-k">NEXT BLOCK</div>` +
+    `<div class="pend-t" id="counter">—:—</div>` +
+    `<div class="pend-m" id="pendmem">—</div>`;
+  el.title = 'The next block, before it exists. Elapsed time is measured '
+           + 'from the last block\u2019s timestamp; the queue is this '
+           + 'node\u2019s mempool.';
+  return el;
+}
+
+function paintPending(){
+  const t = $('pendmem');
+  if(!t) return;
+  t.innerHTML = MEMPOOL_VMB === null
+    ? 'waiting'
+    : `<b>${MEMPOOL_VMB.toFixed(1)} vMB</b> queued`;
+}
+
 function blockEl(b, isNew){
   const el = document.createElement('div');
   el.addEventListener('animationend', e => {
-    if(e.animationName === 'emerge') el.classList.remove('emerge');
+    if(e.animationName === 'settle') el.classList.remove('settle');
   });
   const tier = tierOf(b);
   const pure = tier === 'pure';
-  el.className = 'block ' + tier + (isNew ? ' emerge' : '');
+  el.className = 'block ' + tier + (isNew ? ' settle' : '');
   el.dataset.share = beyondShare(b);
 
   const pct = beyondShare(b) * 100;
@@ -1122,28 +1122,23 @@ function contentKind(b){
   return {icon, word, label, size: fmtBytes(env)};
 }
 
+// A block landing is worth a beat of acknowledgement, but it no longer
+// needs a graphic to happen to — the arriving block settles into the slot
+// the pending marker was holding, which is the event itself.
 function fire(){
-  const ring = $('ring'), flash = $('flash');
-  ring.classList.remove('fire'); flash.classList.remove('go');
-  void ring.offsetWidth;
-  ring.classList.add('fire'); flash.classList.add('go');
-  burst = 1;
-  if(!REDUCED) for(let i=0;i<9;i++) spawnBolt(i%2===0);
+  const flash = $('flash');
+  flash.classList.remove('go');
+  void flash.offsetWidth;
+  flash.classList.add('go');
 }
 
-// Two measured facts, one line, no interpretation. Every translation of
-// mempool size into "blocks" or "minutes" smuggles in an assumption about
-// what gets mined next, and this page's whole claim to authority is that
-// every printed number came off the node. PRESSURE still drives the
-// animation — the portal shows the pressure, the caption states the size.
+// The mempool, stated and not interpreted. Every translation of its size
+// into "blocks" or "minutes" smuggles in an assumption about what gets
+// mined next, and this page's claim to authority is that every printed
+// number came off the node.
 function setPressure(mem){
-  if(!mem){ PRESSURE = 0;
-    $('pgauge').innerHTML = '<b>—</b><span class="k">IN THE MEMPOOL</span>';
-    return; }
-  const vMB = Math.max(mem.vbytes / 1e6, 0.1);
-  PRESSURE = clamp(Math.log10(vMB) / Math.log10(300), 0, 1);
-  $('pgauge').innerHTML =
-    `<b>${vMB.toFixed(1)} vMB</b><span class="k">IN THE MEMPOOL</span>`;
+  MEMPOOL_VMB = mem ? Math.max(mem.vbytes / 1e6, 0.1) : null;
+  paintPending();
 }
 
 async function poll(){
@@ -1161,22 +1156,30 @@ async function poll(){
   setPressure(d.mempool);
 
   const row = $('row');
+  // The pending slot is permanent and always first. New blocks are
+  // inserted AFTER it, so the chain reads: not-yet-mined, newest, older —
+  // and an arriving block settles into the space beside the slot that was
+  // already holding its place, rather than flying in from off-screen.
+  if(!$('pending')) row.prepend(pendingEl());
+  const pend = $('pending');
+
   const fresh = d.blocks.filter(b => !known.has(b.height));
   if(fresh.length && !firstLoad){
     fresh.sort((a,b)=>a.height-b.height).forEach((b,i)=>{
       setTimeout(()=>{
         fire();
-        row.prepend(blockEl(b, true));
-        while(row.children.length > 40) row.lastChild.remove();
+        pend.after(blockEl(b, true));
+        while(row.children.length > 41) row.lastChild.remove();  // +1 for the slot
       }, i*1200);
     });
   } else if(firstLoad){
-    d.blocks.slice(0,40).reverse().forEach(b => row.prepend(blockEl(b, false)));
+    d.blocks.slice(0,40).reverse().forEach(b => pend.after(blockEl(b, false)));
     firstLoad = false;
   }
+  paintPending();
   d.blocks.forEach(b => known.add(b.height));
   if(d.blocks.length) lastBlockTime = d.blocks[0].time;
-  $('win').textContent = d.blocks.length;
+
   if(odoSeeded || odoGate === 0) setOdoTarget();
 
   // chain context bar: the pile at true scale against the whole chain.
@@ -1190,10 +1193,12 @@ async function poll(){
     $('chaintitle').innerHTML =
       `THE WHOLE BLOCKCHAIN · <b>${(d.chain_bytes/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
     $('chainfill').style.width = chainPct.toFixed(2) + '%';
-    $('chaindata').innerHTML =
-      `non-monetary <b>${(odoTarget/1e9).toFixed(2)} GB</b> · ${chainPct.toFixed(1)}%`;
+    // Shares only: the title above states the chain size and the headline
+    // states the pile, so repeating either here is the third printing of
+    // a number the reader has already seen twice.
+    $('chaindata').innerHTML = `non-monetary <b>${chainPct.toFixed(1)}%</b>`;
     $('chainrest').innerHTML =
-      `everything else <b>${((d.chain_bytes-odoTarget)/1e9).toFixed(0)} GB</b> · ${(100-chainPct).toFixed(1)}%`;
+      `everything else <b>${(100-chainPct).toFixed(1)}%</b>`;
   }
 
   // Trailing-24h accumulation from the poller's persistent history.
@@ -1202,11 +1207,14 @@ async function poll(){
   if(d.day){
     const full = d.day.hours >= 23.5;
     const perDay = d.day.data_bytes / d.day.hours * 24;
-    $('odostats').innerHTML =
-      `<span><span class="k">${full ? 'ARRIVED IN THE LAST 24 HOURS'
-        : `ARRIVED IN THE LAST ${d.day.hours} HOURS`}</span><b>+${fmtBytes(d.day.data_bytes)}</b></span>`+
-      `<span><span class="k">AT THAT RATE, EVERY YEAR</span><b>${(perDay*365/1e9).toFixed(1)} GB</b></span>`+
-      `<span><span class="k">SHARE OF THE WHOLE CHAIN</span><b>${chainPct === null ? '—' : chainPct.toFixed(1) + '%'}</b></span>`;
+    // A live measurement, so it sits with the live blocks rather than
+    // under the cumulative total. The yearly extrapolation that used to
+    // accompany it is gone: it projected a single noisy day on a page
+    // whose claim is that nothing is estimated, and the chart above
+    // already draws the real growth over 45 months.
+    $('daystat').innerHTML =
+      `<b>+${fmtBytes(d.day.data_bytes)}</b> arrived in the last ` +
+      `${full ? '24 hours' : d.day.hours + ' hours'}`;
   }
 }
 
@@ -1284,10 +1292,11 @@ paintToggle();
 })();
 
 function tick(){
-  if(lastBlockTime){
+  const c = $('counter');
+  if(c && lastBlockTime){
     const s = Date.now()/1000 - lastBlockTime;
-    $('counter').textContent = fmtAge(s);
-    $('counter').classList.toggle('overdue', s > 600);
+    c.textContent = fmtAge(s);
+    c.classList.toggle('overdue', s > 600);   // past the ~10 minute target
   }
 }
 
@@ -1320,10 +1329,15 @@ function chartTheme(){
           tip:   g('--c-tip', '#FDFCF8'),
           line2: g('--line-2', '#C3BBA6'),
           s1:    g('--c-series-1', '#A8433A'),
-          s2:    g('--c-series-2', '#D9945F')};
+          s2:    g('--c-series-2', '#D9945F'),
+          s3:    g('--c-series-3', '#3F6E7D')};
 }
 
 function themeChart(){
+  try { renderMadeOf(); } catch(e){}     // bar colours are CSS variables
+  try { odoBreakdown(); } catch(e){}     // so are the breakdown swatches
+
+
   if(!pileChart) return;
   const t = chartTheme();
   pileChart.setOption({
@@ -1333,18 +1347,141 @@ function themeChart(){
     legend:{textStyle:{color:t.dim}},
     xAxis:{axisLine:{lineStyle:{color:t.axis}}, axisLabel:{color:t.dim}},
     yAxis:{axisLabel:{color:t.dim}, splitLine:{lineStyle:{color:t.grid}}},
+    // Positional: entries must line up with the series array built in
+    // renderPile, including the optional bands.
     series:[{color:t.s1,
              markLine:{label:{color:t.text},
                        lineStyle:{color:t.axis}}},
-            {color:t.s2}],
+            {color:t.s2},
+            ...(CUM.utxo && CUM.chainstate ? [{color:t.s3}] : []),
+            {color:t.dim, lineStyle:{color:t.dim}}],
   });
 }
+
+// WHAT THE PILE IS MADE OF.
+//
+// Families are measured in ENVELOPE bytes so they reconcile with the
+// headline: families + OP_RETURN = the pile, exactly. Content bytes would
+// have been shares of 35.85 GB sitting beside a 44.27 GB total, and a
+// reader multiplying the two would be wrong by a fifth.
+function renderMadeOf(){
+  const f = CUM && CUM.families;
+  const line = $('mo_line');
+  if(!f || !Array.isArray(f.names) || !f.names.length){
+    const sec = document.getElementById('madeof');
+    if(sec) sec.style.display = 'none';
+    return;
+  }
+  const rows = f.names.map((name, i) => ({
+    name, mb: f.envelope_mb[i] || 0, n: f.envelopes[i] || 0,
+  }));
+  const totMb = rows.reduce((a, r) => a + r.mb, 0) || 1;
+  const totN  = rows.reduce((a, r) => a + r.n, 0) || 1;
+
+  // The finding, in one sentence: the family that dominates the bytes is
+  // not the family that dominates the count.
+  const byByte  = rows.slice().sort((a, b) => b.mb - a.mb)[0];
+  const byCount = rows.slice().sort((a, b) => b.n - a.n)[0];
+  const pc = v => v.toFixed(0) + '%';
+  if(line) line.innerHTML = byByte.name === byCount.name
+    ? `mostly <b>${byByte.name}</b> — ${pc(byByte.mb/totMb*100)} of the bytes ` +
+      `and ${pc(byByte.n/totN*100)} of the inscriptions`
+    : `mostly <b>${byByte.name}</b> by weight — ${pc(byByte.mb/totMb*100)} of ` +
+      `the bytes from ${pc(byByte.n/totN*100)} of the inscriptions — while ` +
+      `${pc(byCount.n/totN*100)} of the inscriptions are <b>${byCount.name}</b>`;
+
+  // Four families plus a fold. Beyond five, slices become slivers and the
+  // legend stops being mappable back to the bar.
+  const top = rows.slice(0, 4);
+  const tail = rows.slice(4);
+  const cats = top.concat(tail.length ? [{
+    name: 'everything else',
+    mb: tail.reduce((a, r) => a + r.mb, 0),
+    n:  tail.reduce((a, r) => a + r.n, 0),
+  }] : []);
+
+  // Size, then how many things that is. The share moves to hover: it is
+  // already stated in the sentence above for the two that matter, and a
+  // third line per column turns a statement into a table.
+  const items = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M'
+                   : n >= 1e3 ? (n/1e3).toFixed(0) + 'K' : String(n);
+  const el = $('mo_parts');
+  if(el) el.innerHTML = cats.map(c => {
+    const shown = c.mb >= 1000 ? (c.mb/1000).toFixed(2) + ' GB'
+                               : c.mb.toFixed(0) + ' MB';
+    return `<span class="mpart" title="${(c.mb/totMb*100).toFixed(1)}% of ` +
+      `inscribed bytes · ${c.n.toLocaleString()} inscriptions">` +
+      `<span class="k">${c.name.toUpperCase()}</span>` +
+      `<b>${shown}</b>` +
+      `<span>${items(c.n)} items</span></span>`;
+  }).join('');
+
+}
+
+// THE HEADLINE, BROKEN OUT.
+//
+// Three contributions in fixed order and fixed colours, matching the
+// chart bands. The first two are block bytes a node can prune away; the
+// third is chainstate, which it cannot. That distinction is not in the
+// labels on purpose — a label is not the place to argue.
+const ODO_PARTS = [
+  {key: 'inscriptions', label: 'INSCRIPTIONS'},
+  {key: 'opreturn',     label: 'OP_RETURN'},
+  {key: 'chainstate',   label: 'CHAINSTATE'},
+];
+
+function odoBreakdown(){
+  const el = $('odoparts');
+  if(!el || !CUM) return;
+  const v = getComputedStyle(document.documentElement);
+  const col = n => v.getPropertyValue(n).trim() || '#888';
+
+  const last = a => Array.isArray(a) && a.length ? a[a.length - 1] : 0;
+  const mb = {
+    inscriptions: last(CUM.witness_envelope_mb),
+    opreturn:     last(CUM.opreturn_mb),
+    chainstate:   (CUM.utxo && CUM.chainstate)
+      ? last(CUM.utxo.insc_bogo_standing) * CUM.chainstate.bytes_per_bogo / 1e6
+      : null,
+  };
+  const total = ODO_PARTS.reduce((a, p) => a + (mb[p.key] || 0), 0);
+  if(!total){ el.innerHTML = ''; return; }
+
+  el.innerHTML = ODO_PARTS.filter(p => mb[p.key] !== null).map(p => {
+    const val = mb[p.key] || 0;
+    const shown = val >= 1000 ? (val / 1000).toFixed(2) + ' GB'
+                              : val.toFixed(0) + ' MB';
+    return `<span class="opart">` +
+      `<span class="k">${p.label}</span>` +
+      `<b>${shown}</b>` +
+      `<span>${(val / total * 100).toFixed(1)}%</span></span>`;
+  }).join('');
+}
+
+// Named once: the legend entry, the tooltip's total, and the series all
+// have to agree, and a typo between them would silently drop the line
+// from the sum.
+const PERMITTED_NAME = 'Old rules allowed';
 
 function renderPile(){
   if(!CUM || typeof echarts === 'undefined'){ $('pilechart').style.display='none'; return; }
   const months = CUM.months;
   const wGB = CUM.witness_envelope_mb.map(v=>+(v/1000).toFixed(2));
   const oGB = CUM.opreturn_mb.map(v=>+(v/1000).toFixed(2));
+  // Absent from datasets exported before this series existed; the chart
+  // simply omits the line rather than failing.
+  const pGB = Array.isArray(CUM.permitted_mb)
+    ? CUM.permitted_mb.map(v=>+(v/1000).toFixed(2)) : null;
+
+  // Chainstate, in real bytes. bogosize is Core's database-independent
+  // size metric and means nothing on its own; the node's own
+  // disk_size/bogosize ratio turns it into bytes actually on disk. If the
+  // export could not reach the node, the ratio is absent and the band is
+  // omitted rather than guessed at.
+  const csRatio = CUM.chainstate && CUM.chainstate.bytes_per_bogo;
+  const csGB = (CUM.utxo && csRatio)
+    ? CUM.utxo.insc_bogo_standing.map(v => +(v * csRatio / 1e9).toFixed(3))
+    : null;
   const SHORT = {'First inscription':null,          // chart starts here — no label needed
                  'BRC-20 launches':'BRC-20',
                  'Runes launches':'Runes',
@@ -1381,8 +1518,24 @@ function renderPile(){
     grid:{left:14,right:14,top:64,bottom:10,containLabel:true},
     tooltip:{trigger:'axis', backgroundColor:CT.tip, borderColor:CT.line2,
       textStyle:{color:CT.text,fontFamily:"'IBM Plex Mono',monospace",fontSize:12},
-      valueFormatter: v => v + ' GB'},
-    legend:{textStyle:{color:CT.dim,fontFamily:"'IBM Plex Mono',monospace",fontSize:12},top:6},
+      // A stacked chart hides its own total: the reader can see three
+      // bands but not what they come to. Sum them here rather than make
+      // them do arithmetic on hover.
+      formatter: ps => {
+        const rows = ps.map(x =>
+          `${x.marker}${x.seriesName}<b style="float:right;margin-left:18px">` +
+          `${(+x.value).toFixed(2)} GB</b>`);
+        const stacked = ps.filter(x => x.seriesName !== PERMITTED_NAME);
+        const total = stacked.reduce((a, x) => a + (+x.value || 0), 0);
+        return `<div style="margin-bottom:4px">${ps[0].axisValue}</div>` +
+               rows.join('<br>') +
+               `<div style="margin-top:5px;padding-top:4px;` +
+               `border-top:1px solid ${CT.line2}">a node stores` +
+               `<b style="float:right;margin-left:18px">${total.toFixed(2)} GB` +
+               `</b></div>`;
+      }},
+    legend:{textStyle:{color:CT.dim,fontFamily:"'IBM Plex Mono',monospace",fontSize:12},
+            top:6, icon:'roundRect', itemWidth:10, itemHeight:10},
     xAxis:{type:'category', data:months,
       axisLine:{lineStyle:{color:CT.axis}},
       axisLabel:{color:CT.dim, fontFamily:"'IBM Plex Mono',monospace", fontSize:11}},
@@ -1398,25 +1551,38 @@ function renderPile(){
       {name:'OP_RETURN', type:'line', stack:'pile',
        areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
        color:CT.s2, data:oGB},
+      // Drawn differently on purpose: a dashed edge and a lighter fill,
+      // because this is the burden pruning cannot remove and it should
+      // not read as simply more of the same bytes.
+      ...(csGB ? [{name:'Chainstate', type:'line',
+                   stack:'total', smooth:true, symbol:'none',
+                   areaStyle:{opacity:.38},
+                   lineStyle:{width:1.5, type:'dashed'},
+                   color:CT.s3, data:csGB}] : []),
+      // The channel that existed before any of this — drawn as a bare line,
+      // no fill, so it reads as a reference level rather than a third
+      // quantity stacked on the others.
+      ...(pGB ? [{name:PERMITTED_NAME, type:'line',
+                  smooth:true, symbol:'none', z:5,
+                  lineStyle:{width:1.6, type:'dashed'}, color:CT.dim,
+                  data:pGB}] : []),
     ]
   });
   addEventListener('resize', ()=>pileChart.resize());
   const cov = CUM.coverage||{};
-  $('pilefoot').innerHTML =
-    `${CUM.estimated === false ? 'exact — every block parsed' : 'estimated from sampled blocks'}` +
-    ` · OP_RETURN measured from ${cov.opreturn?cov.opreturn[0]:'—'}`;
+  // Deliberately empty. What each band means belongs in the methodology,
+  // not in three lines of small print under every chart.
+  $('pilefoot').textContent = '';
 }
 
 (async ()=>{
-  sizeVortex();
-  addEventListener('resize', sizeVortex);
   await seedOdometer();
-  try { renderPile(); }  catch(e){ chartError('c_pile', e); }
+  try { renderMadeOf(); } catch(e){}
+  try { odoBreakdown(); } catch(e){}
+  try { renderPile(); } catch(e){ chartError('c_pile', e); }
   await poll();
   setInterval(poll, 5000);
   setInterval(tick, 1000);
-  lastT = performance.now();
-  requestAnimationFrame(frame);       // draws once even under reduced motion
   requestAnimationFrame(odoFrame);
 })();
 </script>

@@ -45,8 +45,10 @@ Also writes:
                               later without a rescan.
 
 Usage:
-    python opreturn_build_dataset.py 900000 962100 100     # start end step
-    python opreturn_build_dataset.py 960000 962100         # step defaults to 1
+    python opreturn_build_dataset.py 900000 962100         # start end
+    python opreturn_build_dataset.py 900000 962100 3       # 3 prefetch workers
+
+Every block in the range is scanned; there is no sampling mode.
     python opreturn_build_dataset.py 767400 962100 1 3     # 3 prefetch workers
 
 Safe to interrupt. Re-running skips heights already recorded.
@@ -341,7 +343,7 @@ def render_progress(i, total, height, rate, nonstd_total, excess_total):
     print(line.ljust(118), end="", flush=True)
 
 
-def build(start, end, step=1, workers=3):
+def build(start, end, workers=3):
     os.makedirs(OUTDIR, exist_ok=True)
 
     tip = rpc("getblockcount")
@@ -350,11 +352,11 @@ def build(start, end, step=1, workers=3):
         end = tip
 
     already = done_heights()
-    targets = [h for h in range(start, end + 1, step) if h not in already]
+    targets = [h for h in range(start, end + 1) if h not in already]
 
     print(f"Client:  {CLIENT}")
     print(f"Tip:     {tip:,}")
-    print(f"Range:   {start:,} - {end:,} step {step}")
+    print(f"Range:   {start:,} - {end:,}  (every block)")
     print(f"Workers: {workers} (prefetch; classification stays in-order)")
     print(f"To scan: {len(targets):,}  (already have {len(already):,})\n")
 
@@ -443,6 +445,11 @@ if __name__ == "__main__":
         raise SystemExit(1)
     a = int(sys.argv[1])
     b = int(sys.argv[2])
-    s = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-    w = int(sys.argv[4]) if len(sys.argv) > 4 else 3
-    build(a, b, s, w)
+    if len(sys.argv) > 3 and int(sys.argv[3]) > 16:
+        raise SystemExit(
+            f"\nArgument 3 is now the worker count, not a sampling step.\n"
+            f"  {sys.argv[3]} looks like an old step value. Sampling was "
+            f"removed; every block is scanned.\n"
+            f"  Use: python opreturn_build_dataset.py {a} {b} 3\n")
+    w = int(sys.argv[3]) if len(sys.argv) > 3 else 3
+    build(a, b, w)
