@@ -82,7 +82,19 @@ print("\nTOGGLE")
 check("pre-paint script present", "thepile-theme" in s and s.index("thepile-theme") < s.index("<style>"))
 check("toggle button in markup", 'id="themetoggle"' in s)
 check("chart re-themes on toggle", "themeChart()" in s and "getComputedStyle" in s)
-check("one chart instance, hoisted", s.count("echarts.init") == 1 and "pileChart =" in s)
+# Every chart must be hoisted to a module-level variable and re-themed on
+# toggle. echarts bakes colours in at render time, so a chart that is not
+# re-themed keeps the previous theme's ink — silently, and only for readers
+# who use the toggle.
+inits = re.findall(r"(\w+)\s*=\s*echarts\.init", s)
+check("every echarts.init is hoisted to a variable",
+      len(inits) == s.count("echarts.init"),
+      f"{s.count('echarts.init')} inits, {len(inits)} assigned")
+for name in set(inits):
+    check(f"{name} is declared at module level", f"let {name} = null" in s)
+    check(f"{name} is re-themed on toggle",
+          s.count(f"{name}.setOption") >= 2,
+          "rendered but never re-themed")
 
 print("\n" + "=" * 46)
 print(f"  {'ALL PASS' if not fails else str(len(fails)) + ' FAILED: ' + ', '.join(fails)}")

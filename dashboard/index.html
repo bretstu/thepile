@@ -609,6 +609,11 @@
           script branch that is always skipped. It cannot affect whether a
           payment is valid, which leaves it one purpose: carrying bytes.</p>
         <code class="rule">OP_FALSE OP_IF &lt;data&gt; OP_ENDIF</code>
+        <p>Consensus changes made them practical, not a relaxed default:
+          the witness discount in 2017 made this data cheap to include, and
+          Taproot in 2021 removed the limit on how large a script could be.
+          Bitcoin Core never refused inscriptions — there was no rule to
+          relax.</p>
         <p>Finding them needs no list of protocols and no guess at intent.
           The shape of the script is the whole test, so it caught the first
           inscription in 2022 and will catch whatever is invented next.</p>
@@ -617,8 +622,12 @@
       <div class="mblock">
         <h4>OP_RETURN</h4>
         <p>A deliberate way to attach data to a transaction, added in 2014.
-          The output is provably unspendable, so a node never keeps it in
-          working memory — it costs block space and nothing else.</p>
+          Every node still downloads it, verifies it and stores it forever,
+          exactly like inscription data. What it avoids is the second cost:
+          because the output is provably unspendable, it never joins the
+          list of coins a node has to keep on hand.</p>
+        <p>Its size was capped at 83 bytes by a relay default until Bitcoin
+          Core raised the limit in late 2025.</p>
         <p>Only the OP_RETURN outputs are counted, not the transactions
           carrying them. Unlike an inscription, a transaction with an
           OP_RETURN is usually moving money as well, and charging the whole
@@ -638,11 +647,28 @@
       </div>
 
       <div class="mblock">
+        <h4>Where the numbers differ</h4>
+        <p>Everything above counts <b>all</b> OP_RETURN, because storage
+          does not care which rule let the bytes in.</p>
+        <p>The live block section is the one exception. There each block is
+          graded on what the pre-2023 defaults would have refused —
+          inscriptions, plus only the OP_RETURN <b>beyond</b> the old
+          83-byte cap. Ordinary OP_RETURN is left out because it was a
+          deliberate, uncontroversial channel, and including it would put a
+          constant background on every block and hide the thing worth
+          seeing.</p>
+        <p>So the percentages on the blocks, the colour bands and the
+          clean-block count all use that narrower measure. Nothing else on
+          the page does.</p>
+      </div>
+
+      <div class="mblock">
         <h4>What this does not measure</h4>
-        <p><b>These were relay rules, not consensus.</b> Miners taking
-          transactions directly could always include what the defaults
-          refused, so "beyond old limits" is not the same as "would not
-          exist".</p>
+        <p><b>"Would have blocked" is softer than it sounds.</b> The
+          OP_RETURN cap was a relay default, and miners taking transactions
+          directly could always ignore it. Inscriptions were never refused
+          by Bitcoin Core at all. Neither would have been impossible — both
+          would have been harder or dearer.</p>
         <p><b>Data can move.</b> Witness bytes are cheaper than output
           bytes, so data blocked from one route may take another rather
           than disappear.</p>
