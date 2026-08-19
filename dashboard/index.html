@@ -428,25 +428,31 @@
      The detail lives in the methodology table below. */
   #madeof{margin-top:52px;padding-top:30px;padding-bottom:0;
           border-top:1px solid var(--line-2);text-align:center}
-  /* No colour. The tier palette is spoken for — brick means "above
-     typical", teal means "clean" — so borrowing it here asserts a
-     relationship between a media type and a block grade that does not
-     exist. Rank and size carry the hierarchy instead.
+  /* opacity on 11px type is what made this look out of focus. Same
+     visual weight, achieved with colour instead. */
+  .mo-line{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.7;
+           max-width:88ch;margin-left:auto;margin-right:auto}
+  .mo-line b{color:var(--text);font-weight:500}
 
-     Counts, not shares. "880 MB of text" is forgettable; "116 million
-     text inscriptions" is the same fact and is not, and on a monetary
-     network the count is the thing that reads as absurd. */
+  /* Sized by AREA, so doubling the bytes doubles the ink. A bar could not
+     show 11 GB beside 165 MB without the small ones vanishing; a circle
+     can, because area falls off far more slowly than length.
+
+     One neutral colour, not a palette: these are not categories to
+     compare, they are one substance in different amounts. The tier
+     colours are spoken for elsewhere and would imply a relationship that
+     does not exist. */
   #mo_parts{display:flex;justify-content:center;flex-wrap:wrap;
-            gap:14px 40px;margin-top:24px;align-items:baseline}
-  .mpart{display:flex;flex-direction:column;align-items:center;gap:3px}
-  .mpart .k{font-size:11px;letter-spacing:.13em;color:var(--dim)}
+            gap:10px clamp(18px,3vw,46px);margin-top:26px;align-items:flex-end}
+  .mpart{display:flex;flex-direction:column;align-items:center;gap:9px;
+         width:clamp(92px,9vw,128px)}
+  .mblob{border-radius:50%;background:var(--dim);opacity:.42;flex:0 0 auto}
+  .mpart:first-child .mblob{opacity:.55}
+  .mpart .k{font-size:10px;letter-spacing:.13em;color:var(--dim);
+            text-align:center;line-height:1.4}
   .mpart b{font-family:var(--mono);font-weight:500;color:var(--text);
-           font-size:clamp(16px,1.5vw,21px);font-variant-numeric:tabular-nums}
-  .mpart span{font-size:11px;color:var(--dim);opacity:.85}
-  /* The leader is genuinely dominant, so it is set larger rather than
-     merely placed first. */
-  .mpart:first-child b{font-size:clamp(21px,2.1vw,30px)}
-  .mpart:first-child .k{color:var(--text)}
+           font-size:14px;font-variant-numeric:tabular-nums}
+  .mpart em{font-style:normal;font-size:10.5px;color:var(--dim)}
 
 
   /* The three contributions, directly under the number they add up to.
@@ -590,7 +596,7 @@
 
   <section id="madeof">
     <div class="chartlabel">WHAT THE PILE IS MADE OF</div>
-    <div class="sectionsub" id="mo_line"></div>
+    <div class="mo-line" id="mo_line"></div>
     <div id="mo_parts"></div>
   </section>
 
@@ -1426,20 +1432,24 @@ function renderMadeOf(){
     n:  tail.reduce((a, r) => a + r.n, 0),
   }] : []);
 
-  // Size, then how many things that is. The share moves to hover: it is
-  // already stated in the sentence above for the two that matter, and a
-  // third line per column turns a statement into a table.
+  // Circles scaled by AREA against the largest, with a floor so the two
+  // smallest do not disappear. The floor is a small distortion, which is
+  // why the figure sits under every circle and carries the truth.
   const items = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M'
                    : n >= 1e3 ? (n/1e3).toFixed(0) + 'K' : String(n);
+  const MAXD = 116, MIND = 16;
+  const biggest = Math.max(...cats.map(c => c.mb)) || 1;
   const el = $('mo_parts');
   if(el) el.innerHTML = cats.map(c => {
+    const d = Math.max(MIND, MAXD * Math.sqrt(c.mb / biggest));
     const shown = c.mb >= 1000 ? (c.mb/1000).toFixed(2) + ' GB'
                                : c.mb.toFixed(0) + ' MB';
     return `<span class="mpart" title="${(c.mb/totMb*100).toFixed(1)}% of ` +
       `inscribed bytes · ${c.n.toLocaleString()} inscriptions">` +
+      `<i class="mblob" style="width:${d.toFixed(0)}px;height:${d.toFixed(0)}px"></i>` +
       `<span class="k">${c.name.toUpperCase()}</span>` +
       `<b>${shown}</b>` +
-      `<span>${items(c.n)} items</span></span>`;
+      `<em>${items(c.n)} items</em></span>`;
   }).join('');
 
 }
@@ -1577,13 +1587,13 @@ function renderPile(){
       {name:'OP_RETURN', type:'line', stack:'pile',
        areaStyle:{opacity:.65}, symbol:'none', lineStyle:{width:1.5},
        color:CT.s2, data:oGB},
-      // Drawn differently on purpose: a dashed edge and a lighter fill,
-      // because this is the burden pruning cannot remove and it should
-      // not read as simply more of the same bytes.
-      ...(csGB ? [{name:'Chainstate', type:'line',
-                   stack:'total', smooth:true, symbol:'none',
-                   areaStyle:{opacity:.38},
-                   lineStyle:{width:1.5, type:'dashed'},
+      // Same stack name as the other two, or it is not stacked at all —
+      // it draws from zero and paints over them. And the same solid
+      // treatment: it IS part of the total. Dashed is reserved for the
+      // reference line below, which is not.
+      ...(csGB ? [{name:'Chainstate', type:'line', stack:'pile',
+                   areaStyle:{opacity:.65}, symbol:'none',
+                   lineStyle:{width:1.5},
                    color:CT.s3, data:csGB}] : []),
       // The channel that existed before any of this — drawn as a bare line,
       // no fill, so it reads as a reference level rather than a third
