@@ -46,10 +46,11 @@ Also writes:
 
 Usage:
     python opreturn_build_dataset.py 900000 962100         # start end
-    python opreturn_build_dataset.py 900000 962100 3       # 3 prefetch workers
+    python opreturn_build_dataset.py 900000 962100 6       # 6 prefetch workers
 
-Every block in the range is scanned; there is no sampling mode.
-    python opreturn_build_dataset.py 767400 962100 1 3     # 3 prefetch workers
+Every block in the range is scanned; there is no sampling mode. Argument
+three is the worker count, and only overlaps the RPC fetch — classification
+and writing stay strictly in height order.
 
 Safe to interrupt. Re-running skips heights already recorded.
 """
@@ -92,8 +93,13 @@ BAR_EMPTY = "\u2591"
 BLOCK_FIELDS = [
     "height", "block_time", "block_hash",
     "tx_count", "block_vsize", "block_weight",
+    # Serialized block size, straight from the node. Cheap to record here
+    # and impossible to add later without another full scan — and it is
+    # the only honest denominator for "what share of the chain is this",
+    # since size_on_disk counts undo files the chain does not contain.
+    "block_size", "block_strippedsize",
     # OP_RETURN volume
-    "or_txs", "or_outputs", "or_bytes", "or_max_size",
+    "or_txs", "or_outputs", "or_bytes", "or_stored_bytes", "or_max_size",
     # the pre-v30 counterfactual
     "nonstandard_txs", "nonstandard_vsize", "excess_bytes",
     "over_by_size_txs", "over_by_count_txs",
@@ -153,6 +159,7 @@ def analyze_block(height, block_hash=None, block=None):
 
     block_vsize = block_weight = block_fees = 0
     or_txs = or_outputs = or_bytes = or_max = 0
+    or_stored = 0
     nonstd_txs = nonstd_vsize = excess = 0
     over_size = over_count = 0
     or_fees = nonstd_fees = 0
@@ -192,6 +199,7 @@ def analyze_block(height, block_hash=None, block=None):
         or_txs += 1
         or_outputs += c["opreturn_count"]
         or_bytes += c["total_bytes"]
+        or_stored += c["stored_bytes"]
         or_max = max(or_max, c["max_output_bytes"])
         excess += c["excess_bytes"]
         if c["fee_sat"]:
@@ -261,9 +269,12 @@ def analyze_block(height, block_hash=None, block=None):
         "tx_count": len(txs),
         "block_vsize": block_vsize,
         "block_weight": block_weight,
+        "block_size": block.get("size", 0),
+        "block_strippedsize": block.get("strippedsize", 0),
         "or_txs": or_txs,
         "or_outputs": or_outputs,
         "or_bytes": or_bytes,
+        "or_stored_bytes": or_stored,
         "or_max_size": or_max,
         "nonstandard_txs": nonstd_txs,
         "nonstandard_vsize": nonstd_vsize,
@@ -317,8 +328,28 @@ def done_heights():
 
 
 def _writer(path, fields):
-    """Open in append mode, writing the header only on first creation."""
+    """Append-mode writer, refusing to append a different schema.
+
+    DictWriter emits values in `fields` order regardless of what header
+    the file already carries, so appending after a column is added
+    produces a file whose rows are silently shifted against its own
+    header — readable, plausible, and wrong in every column past the
+    insertion point.
+    """
     fresh = not os.path.exists(path)
+    if not fresh:
+        with open(path, newline="", encoding="utf-8") as chk:
+            header = next(csv.reader(chk), [])
+        if header and header != list(fields):
+            added = [c for c in fields if c not in header]
+            gone = [c for c in header if c not in fields]
+            raise SystemExit(
+                f"\n{path} was written with a different set of columns.\n"
+                + (f"  new: {', '.join(added)}\n" if added else "")
+                + (f"  missing: {', '.join(gone)}\n" if gone else "")
+                + "Appending would shift every row against the header.\n"
+                  "Move data/ aside and rebuild, or re-run against a copy."
+            )
     f = open(path, "a", newline="", encoding="utf-8")
     w = csv.DictWriter(f, fieldnames=fields)
     if fresh:
@@ -343,7 +374,7 @@ def render_progress(i, total, height, rate, nonstd_total, excess_total):
     print(line.ljust(118), end="", flush=True)
 
 
-def build(start, end, workers=3):
+def build(start, end, workers=5):
     os.makedirs(OUTDIR, exist_ok=True)
 
     tip = rpc("getblockcount")
@@ -358,6 +389,10 @@ def build(start, end, workers=3):
     print(f"Tip:     {tip:,}")
     print(f"Range:   {start:,} - {end:,}  (every block)")
     print(f"Workers: {workers} (prefetch; classification stays in-order)")
+    if workers > 8:
+        print(f"         NOTE: {workers * 2} decoded blocks are held in memory "
+              f"at once.\n         Above ~8 workers that is usually the "
+              f"binding constraint, not the node.")
     print(f"To scan: {len(targets):,}  (already have {len(already):,})\n")
 
     if not targets:
@@ -450,6 +485,6 @@ if __name__ == "__main__":
             f"\nArgument 3 is now the worker count, not a sampling step.\n"
             f"  {sys.argv[3]} looks like an old step value. Sampling was "
             f"removed; every block is scanned.\n"
-            f"  Use: python opreturn_build_dataset.py {a} {b} 3\n")
-    w = int(sys.argv[3]) if len(sys.argv) > 3 else 3
+            f"  Use: python opreturn_build_dataset.py {a} {b} 5\n")
+    w = int(sys.argv[3]) if len(sys.argv) > 3 else 5
     build(a, b, w)

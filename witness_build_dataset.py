@@ -29,7 +29,13 @@ labeled human/bridge/tag. Display layers choose what to show.
 
 Usage:
     python witness_build_dataset.py 767400 962100
-    python witness_build_dataset.py 767400 962100 3        # 3 prefetch workers
+    python witness_build_dataset.py 767400 962100 6        # 6 prefetch workers
+
+Workers only overlap the RPC fetch. Classification and writing stay
+strictly in height order on this thread, and the tracker commits one
+block at a time, so raising this cannot reorder or skip a block. What it
+does raise is memory: `workers * 2` decoded blocks are buffered, and a
+verbosity-3 block is large once it is Python objects.
 
 Every block in the range is scanned. Sampling was removed: a standing
 UTXO count cannot be reconstructed from a subset of blocks, and a gapped
@@ -277,7 +283,29 @@ def done_heights():
 
 
 def _writer(path, fields):
+    """Append-mode writer, refusing to append a different schema.
+
+    DictWriter emits values in `fields` order regardless of what header
+    the file already carries, so appending after a column is added
+    produces a file whose rows are silently shifted against its own
+    header — readable, plausible, and wrong in every column past the
+    insertion point. Checking costs one line read; not checking costs a
+    full rebuild to discover.
+    """
     fresh = not os.path.exists(path)
+    if not fresh:
+        with open(path, newline="", encoding="utf-8") as chk:
+            header = next(csv.reader(chk), [])
+        if header and header != list(fields):
+            added = [c for c in fields if c not in header]
+            gone = [c for c in header if c not in fields]
+            raise SystemExit(
+                f"\n{path} was written with a different set of columns.\n"
+                + (f"  new: {', '.join(added)}\n" if added else "")
+                + (f"  missing: {', '.join(gone)}\n" if gone else "")
+                + "Appending would shift every row against the header.\n"
+                  "Move data/ aside and rebuild, or re-run against a copy."
+            )
     f = open(path, "a", newline="", encoding="utf-8")
     w = csv.DictWriter(f, fieldnames=fields)
     if fresh:
@@ -344,7 +372,7 @@ def _utxo_setup(start, already):
     return tracker
 
 
-def build(start, end, workers=3):
+def build(start, end, workers=5):
     os.makedirs(OUTDIR, exist_ok=True)
     check_verbosity_3()
 
@@ -360,6 +388,10 @@ def build(start, end, workers=3):
     print(f"Tip:     {tip:,}")
     print(f"Range:   {start:,} - {end:,}  (every block)")
     print(f"Workers: {workers} (prefetch; classification stays in-order)")
+    if workers > 8:
+        print(f"         NOTE: {workers * 2} decoded blocks are held in memory "
+              f"at once.\n         Above ~8 workers that is usually the "
+              f"binding constraint, not the node.")
     print(f"To scan: {len(targets):,}  (already have {len(already):,})")
     print(f"Note: verbosity-3 blocks are heavy; expect this to run slower")
     print(f"than the OP_RETURN scan.\n")
@@ -470,6 +502,6 @@ if __name__ == "__main__":
             f"  {sys.argv[3]} looks like an old step value. Sampling was "
             f"removed; every block is scanned.\n"
             f"  Use: python witness_build_dataset.py {sys.argv[1]} "
-            f"{sys.argv[2]} 3\n")
+            f"{sys.argv[2]} 5\n")
     build(int(sys.argv[1]), int(sys.argv[2]),
-          int(sys.argv[3]) if len(sys.argv) > 3 else 3)
+          int(sys.argv[3]) if len(sys.argv) > 3 else 5)

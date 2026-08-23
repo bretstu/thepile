@@ -376,26 +376,94 @@
 
   /* Follows a short section, so it does not need the full gap — 56px on
      top of that section's own trailing space read as a dead band. */
+  #accounting{margin-top:38px}
+  #accounting .sectionlead{margin-top:0}
+  #accounting .sectionsub{font-size:12px;max-width:88ch}
   #method{margin-top:38px}
   /* The heading inside already carries the rule and the spacing. Without
      this the section drew a second one and left a dead band between. */
   #method .sectionlead{margin-top:0}
+  #method .sectionsub{font-size:12px;max-width:88ch}
   /* Prose is left-aligned and measured. The centred captions elsewhere get
      away with it because they are one line; a paragraph does not. */
-  /* 420px minimum gives TWO columns at full width (~80 characters a line),
-     not three at ~40. Prose needs the measure; a caption does not. */
-  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
-         gap:28px 46px;margin:30px auto 0;max-width:1080px;text-align:left}
-  .mblock h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
-             color:var(--text);font-weight:500;margin-bottom:9px}
-  .mblock p{font-size:12px;line-height:1.8;color:var(--dim);margin-bottom:11px}
+
+  /* FULL WIDTH, like every section above it. The 1080px cap made the
+     methodology look like a footnote bolted to the bottom of the page
+     rather than the third act of it.
+
+     At 1440px this lands three columns of ~55 monospace characters —
+     a newspaper measure, and the natural fit for parts one and two,
+     which have three blocks each. It steps down to two, then one, on
+     its own. */
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(370px,1fr));
+         gap:38px clamp(28px,3.4vw,56px);margin:34px auto 0;text-align:left}
+  /* Part three has two blocks, so a three-column track would leave a
+     hole. A wider minimum forces two and keeps the row balanced. */
+  .mgrid.pair{grid-template-columns:repeat(auto-fit,minmax(560px,1fr))}
+
+  /* 13px is the smallest this face reads comfortably at 1.85 leading;
+     12px was legible but made the reader work, which is the wrong tax
+     to charge on the one section that has to be believed. */
+  .mblock h4{font-size:12px;letter-spacing:.15em;text-transform:uppercase;
+             color:var(--text);font-weight:500;margin-bottom:13px;
+             padding-bottom:9px;border-bottom:1px solid var(--line-2)}
+  .mblock p{font-size:13px;line-height:1.85;color:var(--dim);
+            margin-bottom:13px}
+  .mblock p:last-child{margin-bottom:0}
   .mblock b{color:var(--text);font-weight:500}
+  /* Inline code inside prose, distinct from the .rule display block. */
+  .mblock code:not(.rule){color:var(--text);font-size:12px;
+                          background:var(--panel);padding:1px 5px;
+                          border-radius:2px;white-space:nowrap}
   /* The actual rule, quoted rather than described. */
-  .rule{display:block;font-size:12px;line-height:1.6;background:var(--panel);
-        border-left:2px solid var(--t-amber);padding:9px 13px;margin:11px 0;
+  .rule{display:block;font-size:13px;line-height:1.6;background:var(--panel);
+        border-left:2px solid var(--t-amber);padding:11px 15px;margin:14px 0;
         color:var(--text);border-radius:0 3px 3px 0;overflow-x:auto}
-  .mfoot{max-width:1080px;margin:26px auto 0;text-align:left;font-size:11px;
-         color:var(--dim);opacity:.85;line-height:1.7}
+  .mfoot{margin:34px auto 0;text-align:left;font-size:12px;
+         color:var(--dim);opacity:.85;line-height:1.8;
+         padding-top:22px;border-top:1px solid var(--line-2)}
+
+  /* Part headings inside the method section. Quieter than .sectionlead —
+     these divide one section, they do not start a new one. NOT .mpart,
+     which is already the made-of blob. */
+  .mlead{margin:54px auto 0;padding-bottom:11px;
+         border-bottom:1px solid var(--line);
+         font-size:12px;color:var(--text);letter-spacing:.2em;
+         text-transform:uppercase}
+  .mlead:first-of-type{margin-top:36px}
+  .mlead span{color:var(--dim);letter-spacing:.05em;
+              text-transform:none;font-size:12px}
+
+  /* ---- the accounting summary --------------------------------------
+     The rules, stated before the story that explains them. Two ledger
+     columns per category: what is counted and what is not. The second
+     column is the one that earns trust, so it is not smaller or dimmer
+     than the first — only marked differently. */
+  .acct{margin-top:14px}
+  .acct dl{margin:0}
+  .acct dt{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+           color:var(--text);font-weight:500;margin:14px 0 7px;
+           display:flex;align-items:center;gap:8px}
+  .acct dt::before{content:"";width:14px;height:2px;flex:0 0 14px;
+                   background:var(--teal)}
+  .acct dt.out::before{background:var(--line-2)}
+  .acct dd{font-size:12.5px;line-height:1.75;color:var(--dim);
+           margin:0 0 7px 22px;position:relative}
+  .acct dd::before{content:"";position:absolute;left:-14px;top:.72em;
+                   width:5px;height:5px;border-radius:50%;
+                   background:var(--line-2)}
+  .acct dd b{color:var(--text);font-weight:500}
+  .acct .head{font-size:13px;line-height:1.85;color:var(--dim);
+              margin-bottom:2px}
+  .acct .head b{color:var(--text);font-weight:500}
+  /* The objection a careful reader will raise, answered where they will
+     raise it. Set off from the ledger above rather than appended to it. */
+  .acct .note{margin-top:16px;padding-top:13px;
+              border-top:1px solid var(--line);font-size:12px}
+  /* Inline code inside prose, distinct from the .rule display block. */
+  .mblock code:not(.rule){color:var(--text);font-size:11px;
+                          background:var(--panel);padding:1px 4px;
+                          border-radius:2px}
 
   /* Same shape as .odolabel and .chartlabel — three sections, three
      headings that look alike. The rule above it is what marks the change
@@ -601,97 +669,336 @@
   </section>
 
 
-  <section id="method">
-    <div class="sectionlead">HOW THIS IS COUNTED</div>
-    <div class="sectionsub">every figure on this page comes from parsing each
-      block on a Bitcoin Knots node — no indexers, no third-party APIs, no
-      sampling</div>
+  <section id="accounting">
+    <div class="sectionlead">WHAT IS COUNTED, AND WHAT IS NOT</div>
+    <div class="sectionsub">one question decides every figure below — would
+      these bytes exist if nobody were embedding data? where the answer is
+      arguable, they are left out</div>
 
     <div class="mgrid">
 
       <div class="mblock">
         <h4>Inscriptions</h4>
-        <p>Data written into a part of a transaction that can never run — a
-          script branch that is always skipped. It cannot affect whether a
-          payment is valid, which leaves it one purpose: carrying bytes.</p>
-        <code class="rule">OP_FALSE OP_IF &lt;data&gt; OP_ENDIF</code>
-        <p>Consensus changes made them practical, not a relaxed default:
-          the witness discount in 2017 made this data cheap to include, and
-          Taproot in 2021 removed the limit on how large a script could be.
-          Bitcoin Core never refused inscriptions — there was no rule to
-          relax.</p>
-        <p>Finding them needs no list of protocols and no guess at intent.
-          The shape of the script is the whole test, so it caught the first
-          inscription in 2022 and will catch whatever is invented next.</p>
+        <div class="acct">
+          <p class="head">A reveal transaction exists for one reason.
+            Nobody builds one to move money, so <b>every byte of it</b> is
+            caused by the inscription — and a node stores transactions,
+            not envelopes. The payload is 56% of a reveal; the signatures
+            and skeleton are the other 44%.</p>
+          <dl>
+            <dt>Counted</dt>
+            <dd>The whole reveal transaction — signature, skeleton, dust
+              output and change alike</dd>
+            <dd>On a transfer, only the inscribed output being spent and
+              the inscribed output it becomes</dd>
+            <dt class="out">Not counted</dt>
+            <dd><b>The commit transaction.</b> Every inscription needs
+              one, but it carries no envelope and nothing identifies it.
+              The largest known omission on this page</dd>
+            <dd><b>The rest of a transfer</b> — fee input, change,
+              skeleton. Real when the transaction moves an inscription,
+              not real when a wallet sweeps dust that happens to include
+              one, and nothing in the protocol tells those apart</dd>
+            <dd><b>Any OP_RETURN inside a reveal.</b> Deducted here and
+              charged below instead</dd>
+          </dl>
+        </div>
       </div>
 
       <div class="mblock">
         <h4>OP_RETURN</h4>
-        <p>A deliberate way to attach data to a transaction, added in 2014.
-          Every node still downloads it, verifies it and stores it forever,
-          exactly like inscription data. What it avoids is the second cost:
-          because the output is provably unspendable, it never joins the
-          list of coins a node has to keep on hand.</p>
-        <p>Its size was capped at 83 bytes by a relay default until Bitcoin
-          Core raised the limit in late 2025.</p>
-        <p>Only the OP_RETURN outputs are counted, not the transactions
-          carrying them. Unlike an inscription, a transaction with an
-          OP_RETURN is usually moving money as well, and charging the whole
-          thing to the data would count that as non-monetary too.</p>
+        <div class="acct">
+          <p class="head">An OP_RETURN output is <b>provably
+            unspendable</b> — coins sent to one are destroyed. So none of
+            it does monetary work, at any size, however old the rule that
+            permitted it. Storage does not care which rule let the bytes
+            in.</p>
+          <dl>
+            <dt>Counted</dt>
+            <dd>Every OP_RETURN output on the chain, at the full size a
+              node stores it: script, value field and length prefix</dd>
+            <dt class="out">Not counted</dt>
+            <dd><b>The transaction carrying it.</b> Unlike a reveal, it is
+              usually settling a payment too — only the data-carrying
+              output is attributable</dd>
+            <dd><b>The coinbase OP_RETURN.</b> That is the SegWit
+              commitment, protocol machinery rather than carried data</dd>
+            <dd>Script-only size is tracked separately, because the old
+              83-byte rule governed the script rather than the output</dd>
+          </dl>
+        </div>
       </div>
 
       <div class="mblock">
         <h4>Chainstate</h4>
-        <p>Every inscription sits on a tiny output, usually a few hundred
-          satoshis. That output stays in every node's working state until
-          somebody spends it — and spending it costs more in fees than it
-          holds, so it stays.</p>
-        <p>This is the part pruning cannot remove. A node can delete old
-          blocks and keep validating; it cannot delete its record of what
-          currently exists. It is the smallest number on this page and the
-          only permanent one.</p>
+        <div class="acct">
+          <p class="head">Every inscription rides on a real output,
+            because the numbering convention needs a coin to pin data to.
+            Below roughly a thousand satoshis that output costs more to
+            spend than it holds, so it <b>never moves</b> — and no node
+            can prune it.</p>
+          <dl>
+            <dt>Counted</dt>
+            <dd>Reveal outputs at or below 1,000 satoshis that are still
+              unspent</dd>
+            <dt class="out">Not counted</dt>
+            <dd><b>Change returned to whoever made the inscription.</b>
+              That is ordinary money, and spending it later is ordinary
+              spending</dd>
+            <dd><b>Anything that inherited the tag by being passed
+              along.</b> An output descended from an inscription is not
+              itself one</dd>
+            <dd>Both wider counts are measured as a cross-check and a
+              ceiling. The published figure is the smallest of the
+              three</dd>
+          </dl>
+          <p class="head note"><b>Change is excluded
+            here and counted above. That is not a contradiction</b> — the
+            two categories ask different questions of the same output.
+            <i>Was this byte written because of the inscription?</i> Yes:
+            the transaction exists for no other reason, so all of it
+            counts. <i>Is this coin an inscription burden on every node
+            forever?</i> No: it is money, and it will be spent like
+            money.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="mfoot"><b>Nothing is counted twice.</b> An inscription
+      transaction is counted once — one that both reveals and moves is a
+      reveal, not both — and its serialised size already contains the
+      envelope, the outputs and any OP_RETURN it carries, so those are
+      never added again. OP_RETURN is counted only outside those
+      transactions. Chainstate cannot overlap either, because it is a
+      different database: a node genuinely stores the same output twice,
+      once in block history as a record of what happened and once in the
+      chainstate as an index of what exists now. Counting both is not
+      double counting — it is what the node holds.</p>
+  </section>
+
+  <section id="method">
+    <div class="sectionlead">WHERE THIS DATA CAME FROM, AND HOW IT IS READ</div>
+    <div class="sectionsub">every figure on this page comes from parsing each
+      block on a full node — no indexers, no third-party APIs, no
+      sampling</div>
+
+    <div class="mlead">Part one <span>— how it got there</span></div>
+
+    <div class="mgrid">
+
+      <div class="mblock">
+        <h4>Inscriptions — an accident, then a market</h4>
+        <p>An inscription is a file — an image, a line of text, a token
+          ticket — hidden inside the part of a transaction that normally
+          holds signatures. It rides in a script branch that opens on a
+          condition that is always false, so the interpreter skips the
+          whole branch without ever reading it. It cannot affect whether
+          the payment is valid, which leaves those bytes exactly one
+          purpose: being stored.</p>
+        <code class="rule">OP_FALSE OP_IF &lt;data&gt; OP_ENDIF</code>
+        <p>None of this was designed. SegWit in 2017 moved signatures into
+          a separate witness area and priced those bytes at roughly a
+          quarter of the normal rate — a fix for transaction malleability,
+          with cheap storage as a side effect. Taproot in 2021 then
+          removed the limit on how large a single script could be, so that
+          complex spending conditions would fit — and, unintended, so
+          would a script the size of an entire block. Two upgrades, each
+          reasonable alone, combined into a large discounted slot guarded
+          only by the rule that a branch which never runs is never
+          examined.</p>
+        <p>In December 2022 a developer demonstrated the gap by using it;
+          the first inscription sits in block 767,430. Within weeks the
+          technique shipped as a public tool with a convention that
+          assigns each inscription to an individual satoshi, giving the
+          data an owner — NFTs on Bitcoin. Text-token mints followed in
+          2023 and came to dominate by count. It was raised with Bitcoin
+          Core as a gap in the data limits; the maintainers declined to
+          filter it, on the reasoning that a relay filter does not bind
+          miners and would mostly push the traffic out of view.</p>
+        <p><b>The point that matters for measurement:</b> inscriptions are
+          not a feature that was switched on. They are a seam between two
+          upgrades — found, then productised. There was never a rule
+          against them to relax.</p>
       </div>
 
       <div class="mblock">
-        <h4>Where the numbers differ</h4>
-        <p>Everything above counts <b>all</b> OP_RETURN, because storage
-          does not care which rule let the bytes in.</p>
-        <p>The live block section is the one exception. There each block is
-          graded on what the pre-2023 defaults would have refused —
-          inscriptions, plus only the OP_RETURN <b>beyond</b> the old
-          83-byte cap. Ordinary OP_RETURN is left out because it was a
-          deliberate, uncontroversial channel, and including it would put a
-          constant background on every block and hide the thing worth
-          seeing.</p>
+        <h4>OP_RETURN — the deliberate one</h4>
+        <p>OP_RETURN is the opposite story: a data channel added on
+          purpose. By 2014 people were already embedding data in fake
+          addresses, which forces every node to carry those unspendable
+          "coins" in its working memory forever. Bitcoin Core 0.9 offered
+          a lesser evil — an output type that is provably unspendable, so
+          a node stores it once in block history and never adds it to the
+          list of live coins. It launched at 40 bytes of payload, settled
+          at 80, and stayed there for a decade.</p>
+        <p>In October 2025 Bitcoin Core v30 removed that default cap:
+          multiple OP_RETURN outputs per transaction, up to roughly 100
+          KB. That is the Core v30 marker on the chart above.</p>
+        <p>Every node still downloads, verifies and stores every byte of
+          it, exactly like inscription data. What it avoids is the second,
+          permanent cost — it never enters the chainstate. That difference
+          is the entire reason the third category exists.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>Chainstate — the permanent residue</h4>
+        <p>The chainstate is the database of every coin that currently
+          exists, which every node keeps on hand to check whether the next
+          transaction is spending something real. Inscription dust enters
+          it and stays: spending a few hundred satoshis costs more in fees
+          than it recovers, so tens of millions of these outputs now sit
+          in every node's working set.</p>
+        <p>This is data doing precisely what OP_RETURN was invented in
+          2014 to prevent.</p>
+        <p>It is also different in kind from everything above. Blocks are
+          history: a pruned node deletes them and carries on validating.
+          The chainstate is <b>state</b> — no setting removes an entry
+          while the coin exists. So the smallest number on this page is
+          the only permanent one, and it is the one that decides whether
+          modest hardware can still run a node in ten years.</p>
+      </div>
+
+    </div>
+
+    <div class="mlead">Part two <span>— how the node is read</span></div>
+
+    <div class="mgrid">
+
+      <div class="mblock">
+        <h4>Reading the witness</h4>
+        <p>Each witness script is walked token by token — Bitcoin Script
+          is a fully specified grammar, so every byte belongs to exactly
+          one token — and <code>OP_FALSE OP_IF</code> is matched to its
+          <code>OP_ENDIF</code> by depth, so a conditional nested inside
+          an envelope cannot close it early. An envelope with no matching
+          <code>OP_ENDIF</code> is not counted at all.</p>
+        <p>Detection is structural, not a list of protocols. The shape of
+          the script is the whole test, so the same rule that caught the
+          first inscription in 2022 catches whatever is invented next,
+          with no code change and no guess at intent.</p>
+        <p>Every witness byte then lands in exactly one bucket, and the
+          sum is asserted on every single input:</p>
+        <code class="rule">envelope + overhead + residual = total witness bytes</code>
+        <p>The <b>residual</b> is everything the parser could not
+          attribute, published alongside the headline so a novel embedding
+          trick appears as a spike rather than vanishing. Each block's
+          totals are also checked against <code>size − strippedsize</code>,
+          a figure the node reports independently and the parser never
+          touches.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>Reading the outputs</h4>
+        <p>Every output in every block is examined. An OP_RETURN announces
+          itself in its first byte, so finding them needs no heuristics
+          and no protocol list — the script either starts that way or it
+          does not.</p>
+        <p>Each one is measured twice, because two different questions are
+          being asked of it. The <b>stored</b> size is what a node keeps
+          on disk, and feeds the total above. The <b>script</b> size is
+          what the pre-v30 relay rule capped at 83 bytes, and feeds the
+          per-block grades below. Mixing them would compare a storage
+          figure against a policy limit that never governed storage.</p>
+        <p>Bytes past that allowance are tracked as <b>excess</b>, and
+          because v30 relaxed two rules at once — the size cap and the
+          one-output limit — a transaction breaking only the count rule is
+          recorded separately from one carrying oversized data.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>Tracking the chainstate</h4>
+        <p>The tracker walks the chain strictly in order, starting thirty
+          blocks before the first inscription — so the tagged set begins
+          <b>genuinely empty</b>, with nothing inherited and nothing
+          estimated. Outputs are tagged as they are created and untagged
+          the moment the chain spends them. Order matters within a block
+          too: a transaction can spend an output an earlier transaction in
+          the same block created.</p>
+        <p>Each entry is stored as the real outpoint rather than a hash,
+          so any of them can be handed straight back to the node and
+          confirmed unspent — the bookkeeping is auditable line by line,
+          and no collision argument is needed anywhere.</p>
+        <p>Size uses the node's own database-independent metric
+          (<code>bogosize = 50 + script length</code>), converted to real
+          bytes with the node's own <code>disk_size / bogosize</code>
+          ratio, so every term in the conversion came off the node. As an
+          outside check, counting every reveal output reproduces the
+          figure mempool.space published in its UTXO Set Report —
+          51,188,145 at block 892,385 — from entirely separate code.</p>
+      </div>
+
+    </div>
+
+    <div class="mlead">Part three <span>— where the numbers differ, and what
+      they miss</span></div>
+
+    <div class="mgrid">
+
+      <div class="mblock">
+        <h4>Two measures, on purpose</h4>
+        <p>The total above is a <b>storage</b> measure: what a node
+          carries because this data exists. It answers what the pile
+          costs.</p>
+        <p>The live block section answers a different question and uses a
+          narrower measure. Each block there is graded on what the
+          pre-2023 defaults would not have carried — the inscription
+          <b>payload</b> alone, plus only the OP_RETURN <b>beyond</b> the
+          old 83-byte allowance. Signatures are left out because any
+          transaction needs them, and ordinary OP_RETURN is left out
+          because it was a deliberate, uncontroversial channel; including
+          it would lay a constant background across every block and hide
+          the thing worth seeing.</p>
         <p>So the percentages on the blocks, the colour bands and the
           clean-block count all use that narrower measure. Nothing else on
-          the page does.</p>
+          the page does, and the two are never added together.</p>
+      </div>
+
+      <div class="mblock">
+        <h4>The bounds, stated</h4>
+        <p>Two figures on this page are ranges rather than points, and
+          both are published at the low end.</p>
+        <p><b>Transfers.</b> Only the provable parts are counted, which
+          undercounts a genuine transfer and refuses to overcount a sweep.
+          The whole-transaction figure is measured as an upper bound, so
+          the answer to "how much is this missing?" is a number rather
+          than a shrug.</p>
+        <p><b>Chainstate.</b> The published count excludes change and
+          excludes everything the tag reached by propagation. Counting
+          every reveal output gives the cross-check; counting everything
+          tagged gives the ceiling.</p>
       </div>
 
       <div class="mblock">
         <h4>What this does not measure</h4>
         <p><b>"Would have blocked" is softer than it sounds.</b> The
-          OP_RETURN cap was a relay default, and miners taking transactions
-          directly could always ignore it. Inscriptions were never refused
-          by Bitcoin Core at all. Neither would have been impossible — both
-          would have been harder or dearer.</p>
+          OP_RETURN cap was a relay default, and miners taking
+          transactions directly could always ignore it. Inscriptions were
+          never refused by Bitcoin Core at all. Neither would have been
+          impossible — both would have been harder or dearer.</p>
         <p><b>Data can move.</b> Witness bytes are cheaper than output
           bytes, so data blocked from one route may take another rather
           than disappear.</p>
         <p><b>Some carriers are not detected.</b> Protocols that hide data
-          in fake public keys are counted here as ordinary spending.</p>
-        <p><b>The total is a floor.</b> Blocks between the last full scan
-          and the live feed are not counted yet, so the figure understates
-          rather than overstates.</p>
+          in fake public keys are counted here as ordinary spending — and
+          their outputs sit in the chainstate too. A pipeline for them is
+          planned.</p>
+        <p><b>The total is a floor.</b> Commit transactions are missing,
+          fake-key carriers are missing, transfers and chainstate are both
+          published at their low bound, and blocks between the last full
+          scan and the live feed are not counted yet. Every gap points the
+          same way.</p>
       </div>
 
     </div>
 
     <p class="mfoot">Every block since the first inscription is parsed on a
-      Bitcoin Knots node — no indexers, no third-party data, no sampling.
-      The classifiers are covered by tests that run without a node, and
-      every block is checked against a measure the node reports
-      independently. Source, tests and the full method:
+      full node — no indexers, no third-party data, no sampling. A gap in
+      the block range is an error rather than a mode. The classifiers are
+      covered by tests that run without a node, every witness byte is
+      bound by a per-input accounting identity, and every block is checked
+      against a measure the node reports independently. Source, tests and
+      the full method:
       <a class="deeper" href="https://github.com/bretstu/thepile">github.com/bretstu/thepile</a>.</p>
   </section>
 </main>
@@ -735,6 +1042,14 @@ function plainDays(d){
 }
 
 let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
+// The per-block tier thresholds, filled in from cumulative.json's _meta
+// once it loads. Declared here — not just assigned later — so tierOf can
+// read it during the first live poll, which may fire before the
+// cumulative fetch resolves. Undeclared, that early read throws a
+// ReferenceError that kills the whole poll: no block feed, and the
+// odometer (set at the end of poll) never updates either. The guard in
+// tierOf handles the not-yet-loaded case, but only if the name exists.
+let TIERS = null;
 // Shown on hover over the headline rather than printed under it.
 let ODO_PROVENANCE = '';
 let CUM = null;
@@ -764,7 +1079,7 @@ async function seedOdometer(){
 
     const t = c._meta?.tiers;
     if(t){
-      TIERS = t;
+      TIERS = t;  // assignment; declaration is at module scope above
       const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const nice = s => { const [y,m] = s.split('-'); return `${MON[+m-1]} ${y}`; };
       // Grading live blocks against a window that ended long ago is an
@@ -793,16 +1108,23 @@ async function seedOdometer(){
         el.classList.add(t);
       });
     }
-    // MUST match what the poller adds per live block: envelope bytes
-    // (the full data-carrying construct nodes download), not content
-    // bytes. Mixing the two made the odometer outrun its own baseline.
-    const wmb = c.witness_envelope_mb, omb = c.opreturn_mb;
+    // MUST match what the poller adds per live block. Both sides now
+    // count WHOLE inscription transactions — a reveal exists only to
+    // publish its payload, so every byte of it is caused by the
+    // inscription — plus OP_RETURN bytes outside those transactions.
+    // Mixing measures across the seam made the odometer outrun its own
+    // baseline once before; PILE_SERIES is the one place that choice is
+    // made.
+    const wmb = c.witness_tx_mb || c.witness_envelope_mb;
+    const omb = c.opreturn_mb;
     // Block bytes PLUS chainstate. A node holds both at once, in two
     // separate databases, so they add rather than overlap — see the
     // methodology. Live blocks top up the block-bytes side only; the
     // chainstate share moves when the dataset is rebuilt, which is slow
     // enough not to matter between exports.
-    const bog = c.utxo?.insc_bogo_standing;
+    // Provable chainstate: reveal dust only. Falls back to the wider
+    // tainted figure on datasets built before the split existed.
+    const bog = c.utxo?.reveal_dust_bogo_standing || c.utxo?.insc_bogo_standing;
     const csBytes = (bog && c.chainstate?.bytes_per_bogo)
       ? bog[bog.length-1] * c.chainstate.bytes_per_bogo : 0;
     odoBase = ((wmb?.[wmb.length-1]||0) + (omb?.[omb.length-1]||0)) * 1e6
@@ -1392,10 +1714,16 @@ function themeChart(){
 
 // WHAT THE PILE IS MADE OF.
 //
-// Families are measured in ENVELOPE bytes so they reconcile with the
-// headline: families + OP_RETURN = the pile, exactly. Content bytes would
-// have been shares of 35.85 GB sitting beside a 44.27 GB total, and a
-// reader multiplying the two would be wrong by a fifth.
+// Families are measured in ENVELOPE bytes — the payload and its wrapper,
+// which is the only measure the content-type table can produce, since a
+// content type belongs to an envelope and not to a transaction.
+//
+// The headline counts whole transactions, so the families alone fall
+// short of it by the signatures and skeleton those transactions carry.
+// That shortfall is not hidden and it is not scaled away: it is shown as
+// its own category, because "a third of this is wrapper" is a finding
+// rather than an inconvenience. Families + wrapper = the inscription
+// slice of the headline, exactly.
 function renderMadeOf(){
   const f = CUM && CUM.families;
   const line = $('mo_line');
@@ -1407,6 +1735,9 @@ function renderMadeOf(){
   const rows = f.names.map((name, i) => ({
     name, mb: f.envelope_mb[i] || 0, n: f.envelopes[i] || 0,
   }));
+  // Payload total first — the "mostly images by weight" line compares
+  // families to each other, and a wrapper category has no content type
+  // and would poison that comparison.
   const totMb = rows.reduce((a, r) => a + r.mb, 0) || 1;
   const totN  = rows.reduce((a, r) => a + r.n, 0) || 1;
 
@@ -1432,6 +1763,39 @@ function renderMadeOf(){
     n:  tail.reduce((a, r) => a + r.n, 0),
   }] : []);
 
+  // The rest of the inscription slice, in two parts, because they are
+  // two different claims and fusing them would put a false label on the
+  // largest object in this chart.
+  //
+  //   wrapper   reveal_tx - envelope. Signatures, control blocks and
+  //             transaction skeleton around a payload that IS counted in
+  //             the families beside it.
+  //   transfers whole transactions carrying no payload at all, charged
+  //             on the counterfactual that the thing being moved would
+  //             not exist to move. Calling these "overhead" would be a
+  //             lie about what they are.
+  //
+  // Absent on datasets exported before the whole-transaction measure, in
+  // which case the families already sum to the slice and nothing is added.
+  const lastOf = a => Array.isArray(a) && a.length ? a[a.length - 1] : 0;
+  const payloadMb = rows.reduce((a, r) => a + r.mb, 0);
+  if(CUM.reveal_tx_mb){
+    const wrapMb = lastOf(CUM.reveal_tx_mb) - payloadMb;
+    // The floor — what can be proved. CUM.transfer_tx_mb is the ceiling
+    // and is not what the headline adds up.
+    const xferMb = lastOf(CUM.transfer_floor_mb || CUM.transfer_tx_mb);
+    if(wrapMb > 0) cats.push({name: 'signatures & skeleton', mb: wrapMb,
+                              n: null, note: 'wrapped around the payload'});
+    if(xferMb > 0) cats.push({name: 'transfers', mb: xferMb,
+                              n: null, note: 'moving it, no payload'});
+  } else if(CUM.witness_tx_mb){
+    // Older export: only the combined figure exists, so the split cannot
+    // be drawn honestly and the remainder stays unnamed.
+    const restMb = lastOf(CUM.witness_tx_mb) - payloadMb;
+    if(restMb > 0) cats.push({name: 'transaction bytes', mb: restMb,
+                              n: null, note: 'signatures & transfers'});
+  }
+
   // Circles scaled by AREA against the largest, with a floor so the two
   // smallest do not disappear. The floor is a small distortion, which is
   // why the figure sits under every circle and carries the truth.
@@ -1439,17 +1803,25 @@ function renderMadeOf(){
                    : n >= 1e3 ? (n/1e3).toFixed(0) + 'K' : String(n);
   const MAXD = 116, MIND = 16;
   const biggest = Math.max(...cats.map(c => c.mb)) || 1;
+  const sliceMb = cats.reduce((a, c) => a + c.mb, 0) || 1;
   const el = $('mo_parts');
   if(el) el.innerHTML = cats.map(c => {
     const d = Math.max(MIND, MAXD * Math.sqrt(c.mb / biggest));
     const shown = c.mb >= 1000 ? (c.mb/1000).toFixed(2) + ' GB'
                                : c.mb.toFixed(0) + ' MB';
-    return `<span class="mpart" title="${(c.mb/totMb*100).toFixed(1)}% of ` +
-      `inscribed bytes · ${c.n.toLocaleString()} inscriptions">` +
+    // The non-payload categories have no content type and no item count,
+    // so they carry a note saying what they are instead of a number
+    // invented to fill the shape.
+    const sub = c.n === null ? c.note : `${items(c.n)} items`;
+    const tip = c.n === null
+      ? `${(c.mb/sliceMb*100).toFixed(1)}% of the inscription total`
+      : `${(c.mb/totMb*100).toFixed(1)}% of inscribed bytes · `
+        + `${c.n.toLocaleString()} inscriptions`;
+    return `<span class="mpart" title="${tip}">` +
       `<i class="mblob" style="width:${d.toFixed(0)}px;height:${d.toFixed(0)}px"></i>` +
       `<span class="k">${c.name.toUpperCase()}</span>` +
       `<b>${shown}</b>` +
-      `<em>${items(c.n)} items</em></span>`;
+      `<em>${sub}</em></span>`;
   }).join('');
 
 }
@@ -1474,10 +1846,11 @@ function odoBreakdown(){
 
   const last = a => Array.isArray(a) && a.length ? a[a.length - 1] : 0;
   const mb = {
-    inscriptions: last(CUM.witness_envelope_mb),
+    inscriptions: last(CUM.witness_tx_mb || CUM.witness_envelope_mb),
     opreturn:     last(CUM.opreturn_mb),
     chainstate:   (CUM.utxo && CUM.chainstate)
-      ? last(CUM.utxo.insc_bogo_standing) * CUM.chainstate.bytes_per_bogo / 1e6
+      ? last(CUM.utxo.reveal_dust_bogo_standing || CUM.utxo.insc_bogo_standing)
+        * CUM.chainstate.bytes_per_bogo / 1e6
       : null,
   };
   const total = ODO_PARTS.reduce((a, p) => a + (mb[p.key] || 0), 0);
@@ -1502,7 +1875,11 @@ const PERMITTED_NAME = 'Old rules allowed';
 function renderPile(){
   if(!CUM || typeof echarts === 'undefined'){ $('pilechart').style.display='none'; return; }
   const months = CUM.months;
-  const wGB = CUM.witness_envelope_mb.map(v=>+(v/1000).toFixed(2));
+  // Same two series the odometer sums, for the same reason — a chart
+  // that did not add up to the number above it would be the first thing
+  // a sceptic caught.
+  const wGB = (CUM.witness_tx_mb || CUM.witness_envelope_mb)
+    .map(v=>+(v/1000).toFixed(2));
   const oGB = CUM.opreturn_mb.map(v=>+(v/1000).toFixed(2));
   // Absent from datasets exported before this series existed; the chart
   // simply omits the line rather than failing.
@@ -1516,7 +1893,8 @@ function renderPile(){
   // omitted rather than guessed at.
   const csRatio = CUM.chainstate && CUM.chainstate.bytes_per_bogo;
   const csGB = (CUM.utxo && csRatio)
-    ? CUM.utxo.insc_bogo_standing.map(v => +(v * csRatio / 1e9).toFixed(3))
+    ? (CUM.utxo.reveal_dust_bogo_standing || CUM.utxo.insc_bogo_standing)
+        .map(v => +(v * csRatio / 1e9).toFixed(3))
     : null;
   const SHORT = {'First inscription':null,          // chart starts here — no label needed
                  'BRC-20 launches':'BRC-20',

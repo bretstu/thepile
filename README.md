@@ -28,10 +28,21 @@ envelope + overhead + residual == total witness bytes    (asserted, every block)
   own coverage. A novel data-embedding technique shows up as a residual
   spike instead of silently vanishing.
 
+**The published inscription figure is the whole transaction**, not the
+envelope. A reveal transaction exists only to publish its payload, so its
+signature, skeleton and outputs are all caused by the inscription — and a
+node stores serialized transactions, not envelopes. Transfers are charged
+on the same counterfactual. The envelope figure is still exported
+alongside: it is the payload alone, it is what the per-block grades use,
+and the difference between the two is the wrapper.
+
 For OP_RETURN, every byte is counted: an OP_RETURN output is provably
 unspendable, so it is a data carrier at any size. The pre-v30 83-byte
 limit is tracked separately as a *policy* metric ("excess bytes"), not as
-the monetary boundary.
+the monetary boundary. OP_RETURN bytes that sit *inside* an inscription
+transaction are deducted (`insc_opreturn_bytes`), since the whole-
+transaction measure already charged them — an envelope and an OP_RETURN
+could never overlap before, and now they can.
 
 ### What it does not measure
 
@@ -39,6 +50,9 @@ the monetary boundary.
   steganographic embedding is undetectable by construction.
 - Fake-key outputs (bare multisig, fake P2WSH) that occupy the UTXO set.
   Planned as a third pipeline; currently absent.
+- Commit transactions. An inscription takes a commit *and* a reveal; the
+  commit carries no envelope, so nothing tags it. Its bytes are counted
+  nowhere, which makes every total a floor.
 - Pre-2014 and pre-inscription history outside the scanned range.
 
 ---
@@ -95,11 +109,11 @@ python test_opreturn_classifier.py     # 62 tests
 python test_graffiti_classifier.py     # 28 tests
 ```
 
-Build a quick sample (every 100th block — minutes, not hours):
+Build the datasets:
 
 ```bash
-python witness_build_dataset.py 767400 962000 100
-python opreturn_build_dataset.py 767400 962000 100
+python witness_build_dataset.py 767400 962000
+python opreturn_build_dataset.py 767400 962000
 python witness_explore.py audit        # ALWAYS check coverage first
 python export.py
 ```
@@ -110,20 +124,26 @@ Then serve the dashboard:
 cd dashboard && python -m http.server 8000
 ```
 
-Arguments are `start end step workers`. Use `step 1` for a full scan
-(hours) and `workers 3` to overlap RPC fetches with classification.
+Arguments are `start end workers`. Every block in the range is scanned;
+`workers 3` overlaps RPC fetches with classification. Start at or below
+767,400 so the UTXO tracker begins from a genuinely empty set — it
+refuses to run otherwise rather than inherit an unknown state.
+
+The witness builder refuses to append to a CSV written with a different
+set of columns. If you are upgrading across a schema change, move `data/`
+aside and rebuild.
 
 ---
 
 ## Methodology notes
 
-**Sampling.** A sampled dataset extrapolates chain totals as
-`sampled sum × step`. Inscription bytes are heavy-tailed, so those totals
-ship with bootstrap confidence intervals and are labeled `estimated`.
-A full scan sets the step to 1 and the label flips to exact
-automatically. Sampling steps are derived **per month**, so a
-partially-completed full scan exports correctly rather than mis-scaling
-the sampled remainder.
+**No sampling.** Every block in range is parsed, so every total is a
+count rather than an estimate. Sampling was supported once and was
+removed: scaling a sum by the step is defensible, but a standing UTXO
+count cannot be scaled at all — set membership is not a sum, and an
+output added in a scanned block and spent in a skipped one would never
+be removed. A gap in the height sequence is an error, not a mode; the
+export refuses and names the missing range.
 
 **Perceptual encoding, disclosed.** On the live dashboard the data-share
 aura is scaled non-linearly so a 1% block is visible. The printed

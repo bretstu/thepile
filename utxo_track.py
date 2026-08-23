@@ -63,8 +63,11 @@ no separate checkpoint file that could fall out of step with the CSV.
 WHAT IS NOT COUNTED
 
   OP_RETURN outputs. They are provably unspendable and Bitcoin Core
-  never puts them in the chainstate. Counting them here would inflate
-  every figure in this file.
+  never puts them in the chainstate. Counting them as UTXOs here would
+  inflate every figure in this file. Their SIZE is still recorded, in
+  reveal_opreturn_bytes / transfer_opreturn_bytes, but only for
+  transactions whose whole size was charged — see the note above FIELDS.
+  Those columns are deductions, not additions.
 
   Coinbase inputs. They spend nothing. Coinbase OUTPUTS are counted,
   because they do enter the set.
@@ -97,6 +100,7 @@ BOGO_OVERHEAD = 50
 #
 #   reveal_tx_bytes   ⊃  envelope_bytes  (witness payload)
 #   reveal_tx_bytes   ⊃  insc_output_bytes
+#   reveal_tx_bytes   ⊃  reveal_opreturn_bytes
 #   insc_bogo_*       ∩  everything above  =  nothing
 #                        chainstate is a separate database, so it is
 #                        always additive
@@ -111,6 +115,28 @@ BOGO_OVERHEAD = 50
 #             signatures and skeleton any transaction would need
 #
 # Pick one at display time. Never mix them.
+#
+# THE FULL MEASURE IS THE PUBLISHED ONE, and it brings an overlap the
+# narrow measure could not have. An envelope lives in a witness and an
+# OP_RETURN lives in an output, so under the narrow measure the two
+# pipelines could never touch the same byte. Under the full measure they
+# can: a reveal that also carries an OP_RETURN — a Runes etching is
+# exactly this shape — has those script bytes inside its own size AND
+# counted again by the OP_RETURN builder.
+#
+# The intersection is measured here and DEDUCTED FROM THE INSCRIPTION
+# SIDE. Either side could carry the deduction — the total is identical —
+# but taking it here leaves the OP_RETURN figure as "every OP_RETURN byte
+# on chain", which anyone with a node can reproduce. The alternative left
+# it as "every OP_RETURN except the ones inside inscription
+# transactions", a quantity nobody else computes and nobody can check.
+#
+# The published pile is therefore
+#
+#   (reveal_tx_bytes    - reveal_opreturn_bytes)
+# + (transfer_tx_bytes  - transfer_opreturn_bytes)
+# + all OP_RETURN stored bytes
+# + chainstate
 
 # Value bands, in sats. Stored as counts so the dust threshold stays a
 # DISPLAY decision — "dust" moves with the fee market, and baking one
@@ -120,7 +146,11 @@ BOGO_OVERHEAD = 50
 BANDS = (330, 546, 1_000, 10_000)
 BAND_NAMES = ("b330", "b546", "b1k", "b10k", "bhi")
 
-# Transfers only propagate the tag to outputs this small.
+# Transfers only propagate the tag to outputs this small. It is also the
+# project's single definition of "dust": the value at or below which an
+# output is treated as carrying an inscription rather than money. Used by
+# the propagation bound AND by the provable-floor columns, so the two can
+# never drift apart.
 TAINT_MAX_SATS = 1_000
 
 # Heights at or below this are before the first inscription (767,430), so
@@ -140,10 +170,37 @@ FIELDS = [
     "insc_added", "insc_removed",
     "insc_added_sats", "insc_removed_sats",
     "insc_bogo_added", "insc_bogo_removed",
-    # reveal-only, for the mempool.space cross-check
+    # reveal-only, for the mempool.space cross-check. Counts EVERY
+    # output of a reveal, change included, because that is how the
+    # published figure it is checked against is defined.
     "reveal_added", "reveal_removed",
+    # reveal-only AND dust. The provable chainstate burden: outputs of a
+    # reveal small enough to be carrying the inscription rather than
+    # returning money to the inscriber. Excludes change, excludes
+    # everything propagation added. This is the published figure.
+    "reveal_dust_added", "reveal_dust_removed",
+    "reveal_dust_bogo_added", "reveal_dust_bogo_removed",
     # activity, and the block-side cost of the transactions themselves
     "transfer_txs",
+    # THE PROVABLE FLOOR FOR TRANSFERS.
+    #
+    # transfer_tx_bytes below is the CEILING: the whole transaction,
+    # correct when the transaction exists only to move an inscription
+    # and wrong when an inscription rides along with other business —
+    # a sweep of 200 dust outputs, three of them tagged, is charged in
+    # full. Nothing in the protocol says which of those a transaction
+    # is, so neither figure is published alone.
+    #
+    # These two are what can be proved. The tagged dust input exists
+    # because the inscription exists; the tagged output is where it
+    # lands. The fee input, the change and the skeleton might belong to
+    # the transfer or to something else, so they are outside the floor.
+    # Only inputs at or below TAINT_MAX_SATS count: spending a reveal's
+    # large change output is ordinary spending, not a transfer.
+    "transfer_input_bytes", "transfer_output_bytes",
+    # How much of the gap between floor and ceiling is sweeping. A real
+    # transfer is 1 tagged input of 2 or 3; a sweep is 3 of 200.
+    "transfer_inputs_tagged", "transfer_inputs_total",
     # Block bytes of the tagged OUTPUTS only. Derivable as
     # insc_bogo_added - 41*insc_added, but stored explicitly so the
     # relationship does not have to be rediscovered downstream — and so
@@ -153,6 +210,17 @@ FIELDS = [
     # "size" field. CONTAINS the envelope and output bytes, so these must
     # never be added to those — see the note above FIELDS.
     "reveal_tx_bytes", "transfer_tx_bytes",
+    # OP_RETURN bytes sitting INSIDE those transactions, split the same
+    # way the transaction bytes are. The deduction that keeps the two
+    # pipelines from charging the same bytes twice — subtracted HERE,
+    # from the inscription side, so the OP_RETURN figure stays "every
+    # OP_RETURN byte on chain" and anyone with a node can reproduce it.
+    #
+    # Stored size, not script size: value field and length prefix
+    # included, matching or_stored_bytes in the OP_RETURN pipeline. The
+    # two must use the same convention or the subtraction is wrong by
+    # nine bytes an output.
+    "reveal_opreturn_bytes", "transfer_opreturn_bytes",
     # script mix of tagged additions
     "insc_p2tr", "insc_p2wpkh", "insc_other",
     # data-in-multisig, for later work on Stamps/Counterparty
@@ -192,6 +260,26 @@ def varint_len(n):
     if n < 4_294_967_296:
         return 5
     return 9
+
+
+def input_bytes(vin):
+    """Serialized bytes of one input, witness included.
+
+    36 (outpoint) + length-prefixed scriptSig + 4 (sequence), plus the
+    input's witness stack, which lives elsewhere in the serialization but
+    is stored on the same disk for the same reason. Every term comes off
+    the node's own decoded transaction.
+    """
+    ss = (vin.get("scriptSig") or {}).get("hex", "")
+    n = len(ss) // 2
+    total = 36 + varint_len(n) + n + 4
+    wit = vin.get("txinwitness") or []
+    if wit:
+        total += varint_len(len(wit))
+        for item in wit:
+            ln = len(item) // 2
+            total += varint_len(ln) + ln
+    return total
 
 
 def outpoint(txid, vout):
@@ -280,10 +368,15 @@ class UTXOTracker:
         for tx_i, tx in enumerate(block.get("tx", [])):
             is_coinbase = tx_i == 0
             spent_tagged = False
+            # Per-transaction, because whether these land on the transfer
+            # columns depends on is_reveal, which is not known until the
+            # inputs have already been walked.
+            tagged_in_bytes = tagged_in_n = tx_in_n = 0
 
             # --- inputs first -------------------------------------------
             if not is_coinbase:
                 for vin in tx.get("vin", []):
+                    tx_in_n += 1
                     prev = vin.get("prevout")
                     if prev is None:
                         # Never expected at verbosity 3. Counted rather
@@ -306,11 +399,22 @@ class UTXOTracker:
                         spent_tagged = True
                         row["insc_removed"] += 1
                         row["insc_removed_sats"] += sats
-                        row["insc_bogo_removed"] += (
-                            BOGO_OVERHEAD + len(spk.get("hex", "")) // 2)
+                        bogo = BOGO_OVERHEAD + len(spk.get("hex", "")) // 2
+                        row["insc_bogo_removed"] += bogo
                         row[f"insc_{BAND_NAMES[band_index(sats)]}_spent"] += 1
                         if hit[0]:
                             row["reveal_removed"] += 1
+                            if sats <= TAINT_MAX_SATS:
+                                row["reveal_dust_removed"] += 1
+                                row["reveal_dust_bogo_removed"] += bogo
+                        # The floor counts only tagged DUST. Spending a
+                        # reveal's large change output is the inscriber
+                        # spending money, not moving an inscription —
+                        # the transaction still trips the ceiling, but
+                        # it proves nothing and is left out here.
+                        if sats <= TAINT_MAX_SATS:
+                            tagged_in_n += 1
+                            tagged_in_bytes += input_bytes(vin)
 
             if spent_tagged:
                 row["transfer_txs"] += 1
@@ -325,6 +429,9 @@ class UTXOTracker:
                 row["reveal_tx_bytes"] += tx.get("size", 0)
             elif spent_tagged:
                 row["transfer_tx_bytes"] += tx.get("size", 0)
+                row["transfer_input_bytes"] += tagged_in_bytes
+                row["transfer_inputs_tagged"] += tagged_in_n
+                row["transfer_inputs_total"] += tx_in_n
             # A reveal tags everything it makes; a transfer tags only the
             # dust it makes, so consolidating into real money does not
             # mark that money as inscription-related.
@@ -337,8 +444,19 @@ class UTXOTracker:
                 script_len = len(spk.get("hex", "")) // 2
                 row["output_bytes"] += 8 + varint_len(script_len) + script_len
 
-                # OP_RETURN outputs never enter the chainstate.
+                # OP_RETURN outputs never enter the chainstate, so they
+                # take no further part in the UTXO accounting. They are
+                # measured here first: if this transaction's whole size
+                # was charged above, these script bytes are inside that
+                # charge and the OP_RETURN pipeline is about to count
+                # them a second time.
                 if spk.get("type") == "nulldata":
+                    if is_reveal:
+                        row["reveal_opreturn_bytes"] += (
+                            8 + varint_len(script_len) + script_len)
+                    elif spent_tagged:
+                        row["transfer_opreturn_bytes"] += (
+                            8 + varint_len(script_len) + script_len)
                     continue
 
                 sats = _sats(vout)
@@ -356,10 +474,19 @@ class UTXOTracker:
                 row["insc_added"] += 1
                 row["insc_added_sats"] += sats
                 row["insc_bogo_added"] += BOGO_OVERHEAD + script_len
-                row["insc_output_bytes"] += 8 + varint_len(script_len) + script_len
+                stored = 8 + varint_len(script_len) + script_len
+                row["insc_output_bytes"] += stored
+                if not is_reveal:
+                    # Tagged by propagation from a transfer, so it is
+                    # where the inscription landed — part of the floor.
+                    row["transfer_output_bytes"] += stored
                 row[f"insc_{band}_created"] += 1
                 if is_reveal and track_rev:
                     row["reveal_added"] += 1
+                    if sats <= TAINT_MAX_SATS:
+                        row["reveal_dust_added"] += 1
+                        row["reveal_dust_bogo_added"] += (
+                            BOGO_OVERHEAD + script_len)
 
                 t = spk.get("type", "")
                 if t == "witness_v1_taproot":

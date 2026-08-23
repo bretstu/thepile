@@ -238,5 +238,120 @@ r3 = t11.process_block(b2, envelope_txids={both})
 check("reveal takes precedence over transfer", r3["reveal_tx_bytes"], 700)
 check("not double counted", r3["transfer_tx_bytes"], 0)
 
+print("\nOP_RETURN INSIDE A CHARGED TRANSACTION")
+# The overlap the whole-transaction measure creates and the envelope
+# measure could not: a reveal that also carries an OP_RETURN — a Runes
+# etching — has those script bytes inside its own size AND counted by the
+# OP_RETURN pipeline. This column is the deduction.
+NULLDATA_LEN = len(NULLDATA) // 2      # 1 + 40 = 41 bytes of script
+# Stored size adds the value field and the length prefix, matching
+# or_stored_bytes in the OP_RETURN pipeline.
+NULLDATA_STORED = 8 + 1 + NULLDATA_LEN
+t12 = fresh()
+et = "bb" * 32
+b3 = block([tx(et, [vin("66" * 32, 0, 20_000)],
+               [out(546), out(0, NULLDATA, "nulldata")])])
+b3["tx"][1]["size"] = 900
+r4 = t12.process_block(b3, envelope_txids={et})
+check("OP_RETURN bytes inside a reveal are recorded",
+      r4["reveal_opreturn_bytes"], NULLDATA_STORED)
+check("and not on the transfer column", r4["transfer_opreturn_bytes"], 0)
+check("the OP_RETURN output is not a UTXO", r4["insc_added"], 1)
+check("nor counted in the output bytes",
+      r4["insc_output_bytes"], 8 + 1 + P2TR_LEN)
+check("the deduction is inside the charged size",
+      r4["reveal_opreturn_bytes"] < r4["reveal_tx_bytes"], True)
+
+# Same output in a transfer: also already charged, so also deducted.
+b4 = block([tx("bc" * 32, [vin(et, 0, 546)],
+               [out(500), out(0, NULLDATA, "nulldata")])])
+b4["tx"][1]["size"] = 300
+r5 = t12.process_block(b4, envelope_txids=set())
+check("OP_RETURN bytes inside a transfer are recorded",
+      r5["transfer_opreturn_bytes"], NULLDATA_STORED)
+check("and not on the reveal column", r5["reveal_opreturn_bytes"], 0)
+
+# An ordinary payment carrying an OP_RETURN is charged to nobody here —
+# the OP_RETURN pipeline counts it in full and there is nothing to
+# subtract.
+t13 = fresh()
+b5 = block([tx("bd" * 32, [vin("55" * 32, 0, 100_000)],
+               [out(90_000), out(0, NULLDATA, "nulldata")])])
+b5["tx"][1]["size"] = 250
+r6 = t13.process_block(b5, envelope_txids=set())
+check("untagged OP_RETURN is not deducted",
+      r6["reveal_opreturn_bytes"] + r6["transfer_opreturn_bytes"], 0)
+
+# The deduction must use the SAME convention as the OP_RETURN pipeline,
+# or the subtraction is wrong by nine bytes an output.
+from opreturn_classifier import classify_tx as _oc
+_pipeline = _oc({"txid": "x"*64, "vout": [{"scriptPubKey": {"hex": NULLDATA}}]})
+check("deduction matches or_stored_bytes exactly",
+      r5["transfer_opreturn_bytes"], _pipeline["stored_bytes"])
+
+
+print("\nTHE PROVABLE FLOOR, AND WHAT FALLS OUTSIDE IT")
+# A reveal tags every output it makes, change included — that is how the
+# mempool.space cross-check is defined. The dust columns are the subset
+# that can be proved to be carrying the inscription.
+t14 = fresh()
+rv2 = "d1" * 32
+b = block([tx(rv2, [vin("d0" * 32, 0, 250_000)], [out(546), out(200_000)])])
+b["tx"][1]["size"] = 600
+r = t14.process_block(b, envelope_txids={rv2})
+check("reveal tags change too (cross-check definition)", r["reveal_added"], 2)
+check("but only the dust is provable", r["reveal_dust_added"], 1)
+check("dust bogosize is the dust output only",
+      r["reveal_dust_bogo_added"], 50 + P2TR_LEN)
+
+# Spending that change is ordinary spending. It trips the ceiling,
+# because the outpoint is tagged, but proves nothing.
+b2 = block([tx("d2" * 32, [vin(rv2, 1, 200_000)], [out(190_000)])])
+b2["tx"][1]["size"] = 250
+r2 = t14.process_block(b2, envelope_txids=set())
+check("spending reveal change hits the ceiling", r2["transfer_tx_bytes"], 250)
+check("and contributes nothing to the floor", r2["transfer_input_bytes"], 0)
+check("nor to the provable chainstate", r2["reveal_dust_removed"], 0)
+
+# A real transfer: the tagged dust input and the tagged output are the floor.
+t15 = fresh()
+rv3 = "e1" * 32
+b3 = block([tx(rv3, [vin("e0" * 32, 0, 9_000)], [out(546)])])
+b3["tx"][1]["size"] = 500
+t15.process_block(b3, envelope_txids={rv3})
+mv = tx("e2" * 32, [vin(rv3, 0, 546), vin("e9" * 32, 0, 40_000)], [out(546), out(30_000)])
+mv["size"] = 400
+mv["vin"][0]["txinwitness"] = ["aa" * 64]          # 64-byte sig
+r3 = t15.process_block(block([mv]), envelope_txids=set())
+check("ceiling is the whole transaction", r3["transfer_tx_bytes"], 400)
+check("floor counts one tagged input of two", r3["transfer_inputs_tagged"], 1)
+check("and knows the total", r3["transfer_inputs_total"], 2)
+check("floor input bytes: 36+1+0+4 + witness(1+1+64)",
+      r3["transfer_input_bytes"], 36 + 1 + 4 + 1 + 1 + 64)
+check("floor output bytes: the new dust only",
+      r3["transfer_output_bytes"], 8 + 1 + P2TR_LEN)
+check("floor is below the ceiling",
+      r3["transfer_input_bytes"] + r3["transfer_output_bytes"]
+      < r3["transfer_tx_bytes"], True)
+
+# A sweep: one tagged dust among many, consolidated above the bound.
+t16 = fresh()
+rv4 = "f5" * 32
+b4 = block([tx(rv4, [vin("f4" * 32, 0, 9_000)], [out(546)])])
+b4["tx"][1]["size"] = 500
+t16.process_block(b4, envelope_txids={rv4})
+sweep = tx("f6" * 32,
+           [vin(rv4, 0, 546)] + [vin(bytes([i]).hex() * 32, 0, 700)
+                                 for i in range(1, 60)],
+           [out(30_000)])
+sweep["size"] = 9_000
+r4 = t16.process_block(block([sweep]), envelope_txids=set())
+check("sweep ceiling charges everything", r4["transfer_tx_bytes"], 9_000)
+check("sweep floor charges one input", r4["transfer_inputs_tagged"], 1)
+check("out of sixty", r4["transfer_inputs_total"], 60)
+check("sweep floor is a tiny fraction of the ceiling",
+      r4["transfer_input_bytes"] + r4["transfer_output_bytes"] < 100, True)
+check("and the taint stops at the >1,000-sat output", r4["insc_added"], 0)
+
 print(f"\n{passed} passed, {failed} failed\n")
 sys.exit(1 if failed else 0)

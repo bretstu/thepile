@@ -73,39 +73,65 @@ def classify_block(height):
     txs = block["tx"][1:]  # skip coinbase
 
     envelope = 0
+    insc_tx = 0
     or_bytes = 0
+    or_outside = 0
     or_excess = 0
     families = {}
 
     for tx in txs:
         w = classify_tx_witness(tx)
+        has_envelope = bool(w and w["envelope_count"])
         if w:
             envelope += w["envelope_bytes"]
             for env in w["envelopes"]:
                 fam = (env["content_type"] or "").split(";")[0].split("/")[0]
                 fam = fam or "untyped"
                 families[fam] = families.get(fam, 0) + env["content_bytes"]
+        # Whole serialized size of any transaction carrying an envelope.
+        # It exists only to publish that payload, so every byte of it —
+        # signature, skeleton, outputs — is caused by the inscription.
+        if has_envelope:
+            insc_tx += tx.get("size", 0)
         o = classify_opreturn(tx)
         if o:
             or_bytes += o["total_bytes"]
             or_excess += o["excess_bytes"]
+            # An OP_RETURN inside a reveal is already inside the size
+            # charged just above — a Runes etching is exactly that shape.
+            # Counting it again here would inflate every live block.
+            if not has_envelope:
+                or_outside += o["total_bytes"]
 
     size = block.get("size", 0)
     top_family = max(families, key=families.get) if families else ""
 
     # TWO MEASURES, answering two different questions.
     #
-    # data_bytes — every non-monetary byte a node must store. Feeds the
-    #   odometer and the cumulative pile.
+    # data_bytes — every non-monetary byte a node must store. Whole
+    #   inscription transactions plus every OP_RETURN outside them.
+    #   Feeds the odometer and the cumulative pile, and MUST match what
+    #   export.py accumulates or the two disagree across the seam.
+    #
+    #   KNOWN GAP: transfers. The historical pipeline also charges
+    #   transactions that spend inscription dust, which needs the tagged
+    #   outpoint set to identify — state this poller does not carry.
+    #   Live blocks therefore count reveals only, so a live block reads
+    #   slightly low rather than slightly high. Consistent with every
+    #   other rounding decision here: the total is a floor.
     #
     # beyond_bytes — only what post-2022 policy changes ENABLED:
     #   inscription envelopes (never sanctioned at any size) plus
     #   OP_RETURN bytes past the pre-v30 allowance of one output at 83
-    #   bytes. Ordinary small OP_RETURNs are excluded: that channel was
-    #   deliberately created and sized in 2014, so counting it against
-    #   the policy changes would be measuring the settlement, not the
-    #   departure from it. Feeds the tiers and the pure-block clock.
-    data_bytes = envelope + or_bytes
+    #   bytes. Deliberately still the ENVELOPE, not the transaction:
+    #   this measure grades a block on the data the old defaults would
+    #   not have carried, and the signatures wrapping that data are
+    #   bytes any transaction needs. Ordinary small OP_RETURNs are
+    #   excluded — that channel was deliberately created and sized in
+    #   2014, so counting it against the policy changes would be
+    #   measuring the settlement, not the departure from it. Feeds the
+    #   tiers and the pure-block clock.
+    data_bytes = insc_tx + or_outside
     beyond_bytes = envelope + or_excess
 
     return {
@@ -116,7 +142,9 @@ def classify_block(height):
         "tx_count": len(txs),
         "block_size": size,
         "envelope_bytes": envelope,
+        "insc_tx_bytes": insc_tx,
         "opreturn_bytes": or_bytes,
+        "opreturn_outside_insc_bytes": or_outside,
         "opreturn_excess_bytes": or_excess,
         "data_bytes": data_bytes,
         "data_share": round(data_bytes / size, 5) if size else 0,
@@ -142,7 +170,8 @@ def classify_block(height):
 PUBLISHED_FIELDS = (
     "height", "hash", "time", "miner",
     "tx_count", "block_size",
-    "envelope_bytes", "opreturn_bytes", "opreturn_excess_bytes",
+    "envelope_bytes", "insc_tx_bytes",
+    "opreturn_bytes", "opreturn_outside_insc_bytes", "opreturn_excess_bytes",
     "data_bytes", "data_share",
     "beyond_bytes", "beyond_share",
     "top_family",
@@ -155,16 +184,23 @@ def published(block):
 
 
 def upgrade_history(history):
-    """Backfill beyond_bytes into rows written before it existed.
+    """Reclassify rows written before the current measures existed.
+
+    Two upgrades now: beyond_bytes, and the switch of data_bytes from
+    envelope bytes to whole inscription transactions. A row missing
+    either was computed under a definition the odometer no longer uses,
+    and leaving it in place would put a visible step in the total at
+    whatever height the history happens to reach back to.
 
     Needs the full witness accounting, so it costs a reclassify per row
     and is capped at a day's worth per startup.
     """
-    missing = sorted((b for b in history.values() if "beyond_bytes" not in b),
-                     key=lambda b: -b["height"])[:144]
+    stale = (b for b in history.values()
+             if "beyond_bytes" not in b or "insc_tx_bytes" not in b)
+    missing = sorted(stale, key=lambda b: -b["height"])[:144]
     if not missing:
         return False
-    print(f"Backfilling beyond_bytes for {len(missing)} blocks...")
+    print(f"Reclassifying {len(missing)} blocks under the current measures...")
     for b in missing:
         try:
             history[b["height"]] = classify_block(b["height"])

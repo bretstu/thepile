@@ -73,6 +73,40 @@ def script_bytes(script_hex):
     return len(script_hex) // 2
 
 
+def varint_len(n):
+    """Bytes Bitcoin uses for a CompactSize of n.
+
+    Matters because a post-v30 OP_RETURN can carry ~100 KB, and assuming
+    a 1-byte length prefix would undercount those outputs by two bytes
+    each.
+    """
+    if n < 253:
+        return 1
+    if n < 65_536:
+        return 3
+    if n < 4_294_967_296:
+        return 5
+    return 9
+
+
+def output_bytes(script_hex):
+    """What a node actually stores for this output, in bytes.
+
+    An output on disk is value + script length prefix + script. The
+    83-byte policy limit applies to the SCRIPT alone, so script_bytes is
+    what the grades compare against — but the pile is a storage measure,
+    and the value field is stored whether or not it holds anything.
+
+    For an OP_RETURN it almost never holds anything: the output is
+    provably unspendable, so any satoshis assigned to it are destroyed.
+    Those eight bytes therefore do no monetary work. They exist because
+    somebody attached data, which is the same test every other figure in
+    this project applies.
+    """
+    n = script_bytes(script_hex)
+    return 8 + varint_len(n) + n
+
+
 def parse_opreturn(script_hex):
     """Decompose an OP_RETURN script.
 
@@ -238,6 +272,7 @@ def opreturn_outputs(tx):
             out.append({
                 "vout": idx,
                 "size": script_bytes(script_hex),
+                "stored": output_bytes(script_hex),
                 "protocol": protocol_tag(script_hex),
                 "prefix": payload_prefix(script_hex),
                 "hex": script_hex,
@@ -260,7 +295,12 @@ def classify_tx(tx):
     Returns None for transactions with no OP_RETURN outputs.
 
     Key fields:
-      total_bytes    — actual OP_RETURN scriptPubKey bytes
+      total_bytes    — actual OP_RETURN scriptPubKey bytes. The POLICY
+                       quantity: what the 83-byte limit applied to.
+      stored_bytes   — what a node stores for those outputs: value and
+                       length prefix included. The STORAGE quantity, and
+                       the one the pile uses. Always ~9 bytes/output
+                       larger than total_bytes.
       legacy_bytes   — what pre-v30 policy would have permitted
       excess_bytes   — total_bytes - legacy_bytes, floored at zero.
                        THIS IS THE HEADLINE METRIC. Read the module
@@ -277,6 +317,7 @@ def classify_tx(tx):
         return None
 
     total_bytes = sum(o["size"] for o in outs)
+    stored_bytes = sum(o["stored"] for o in outs)
     n = len(outs)
     legacy_bytes = legacy_allowance(n)
 
@@ -290,6 +331,7 @@ def classify_tx(tx):
         "fee_sat": int(round(tx["fee"] * 1e8)) if tx.get("fee") is not None else None,
         "opreturn_count": n,
         "total_bytes": total_bytes,
+        "stored_bytes": stored_bytes,
         "max_output_bytes": max(o["size"] for o in outs),
         "legacy_bytes": legacy_bytes,
         "excess_bytes": max(0, total_bytes - legacy_bytes),

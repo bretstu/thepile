@@ -170,7 +170,8 @@ def main():
              "envelope_txs", "envelope_fees_sat", "largest_content_bytes",
              "tx_count"] + UTXO_COLS
     O_INT = ["height", "block_time", "tx_count", "block_vsize", "or_txs",
-             "or_outputs", "or_bytes", "or_max_size", "nonstandard_txs",
+             "or_outputs", "or_bytes", "or_stored_bytes", "or_max_size",
+             "nonstandard_txs",
              "excess_bytes", "over_by_size_txs", "over_by_count_txs",
              "nonstandard_fees_sat"]
     T_INT = ["height", "block_time", "envelopes", "content_bytes",
@@ -325,8 +326,10 @@ def main():
     meta = {"generated_at": generated_at, "datasets": datasets,
             "events": EVENTS, "tiers": tiers, "last_clean": last_clean,
             "measures": {
-                "pile": "all non-monetary bytes a node must store "
-                        "(inscription envelopes + all OP_RETURN)",
+                "pile": "all non-monetary bytes a node must store: the "
+                        "whole reveal and transfer transactions, plus "
+                        "every OP_RETURN byte outside them, plus the "
+                        "chainstate entries inscriptions leave behind",
                 "beyond": "only what post-2022 policy changes enabled: "
                           "inscription envelopes + OP_RETURN beyond the "
                           "pre-v30 allowance of one output at 83 bytes",
@@ -391,8 +394,9 @@ def main():
     for r in ob:
         m = o_monthly[month_key(r["block_time"])]
         m["blocks"] += 1
-        for k in ("or_bytes", "excess_bytes", "nonstandard_txs",
-                  "block_vsize", "over_by_size_txs", "over_by_count_txs"):
+        for k in ("or_bytes", "or_stored_bytes", "excess_bytes",
+                  "nonstandard_txs", "block_vsize",
+                  "over_by_size_txs", "over_by_count_txs"):
             m[k] += r[k]
 
     if ob:
@@ -447,9 +451,16 @@ def main():
             return None
         out = {"insc_utxo_standing": [], "insc_bogo_standing": [],
                "reveal_utxo_standing": [],
+               # The published chainstate figure: outputs of a reveal
+               # small enough to be carrying the inscription rather than
+               # returning change to the inscriber. No propagation, no
+               # change. The two above are the wider definitions, kept
+               # as the cross-check and the ceiling.
+               "reveal_dust_standing": [], "reveal_dust_bogo_standing": [],
                "insc_tx_mb": [], "insc_output_mb": [],
                "transfer_txs": [], "insc_added": [], "insc_removed": []}
         standing = reveal_standing = bogo = 0
+        dust = dust_bogo = 0
         for mo in months:
             d = monthly[mo]
             if "insc_added" not in d:
@@ -457,8 +468,13 @@ def main():
             standing += d["insc_added"] - d["insc_removed"]
             reveal_standing += d["reveal_added"] - d["reveal_removed"]
             bogo += d["insc_bogo_added"] - d["insc_bogo_removed"]
+            dust += d.get("reveal_dust_added", 0) - d.get("reveal_dust_removed", 0)
+            dust_bogo += (d.get("reveal_dust_bogo_added", 0)
+                          - d.get("reveal_dust_bogo_removed", 0))
             out["insc_utxo_standing"].append(standing)
             out["reveal_utxo_standing"].append(reveal_standing)
+            out["reveal_dust_standing"].append(dust)
+            out["reveal_dust_bogo_standing"].append(dust_bogo)
             out["insc_bogo_standing"].append(bogo)
             out["insc_tx_mb"].append(
                 round((d["reveal_tx_bytes"] + d["transfer_tx_bytes"]) / 1e6, 2))
@@ -589,24 +605,135 @@ def main():
         }
 
 
+    # Does the witness dataset carry the whole-transaction columns? They
+    # arrived with the UTXO tracker, so a dataset built before it has
+    # only envelope bytes and the page falls back to the narrow measure
+    # rather than rendering a headline of zero.
+    has_tx = any("reveal_tx_bytes" in w_monthly[m] for m in w_monthly)
+    # The deduction column is newer still. Its absence is not fatal —
+    # the overlap is small — but it means the pile is knowingly counting
+    # some bytes twice, which is worth one line of noise at export time.
+    has_dedupe = any("reveal_opreturn_bytes" in w_monthly[m] for m in w_monthly)
+    if has_tx and not has_dedupe:
+        print("  note: witness_blocks.csv predates the OP_RETURN deduction "
+              "columns, so\n        OP_RETURN bytes inside inscription "
+              "transactions are counted twice.\n        Rebuild to remove "
+              "the overlap.")
+
+    # THE DEDUCTION CROSSES TWO PIPELINES, so it is only valid where both
+    # cover the same chain. insc_opreturn_bytes is measured by the witness
+    # builder; or_bytes by the OP_RETURN builder. Subtracting one from the
+    # other in a month only one of them scanned would remove bytes that
+    # were never added, and the result would look perfectly reasonable.
+    #
+    # Two failures are checked. A month with witness coverage and no
+    # OP_RETURN coverage silently loses its deduction; a month where the
+    # deduction EXCEEDS the total is proof the two files were built over
+    # different ranges, because a subset cannot be larger than its set.
+    if has_tx and has_dedupe:
+        def dedup(m):
+            return (w_monthly[m].get("reveal_opreturn_bytes", 0)
+                    + w_monthly[m].get("transfer_opreturn_bytes", 0))
+
+        def or_stored(m):
+            # or_stored_bytes is the newer column; fall back to the script
+            # figure so an older OP_RETURN dataset still exports.
+            return (o_monthly[m].get("or_stored_bytes")
+                    or o_monthly[m].get("or_bytes", 0))
+
+        gap = [m for m in sorted(set(w_monthly) | set(o_monthly))
+               if dedup(m) and not or_stored(m)]
+        over = [m for m in sorted(set(w_monthly) & set(o_monthly))
+                if dedup(m) > or_stored(m)]
+        if over:
+            print(f"  WARNING: in {len(over)} month(s) the OP_RETURN "
+                  f"deduction exceeds the OP_RETURN total "
+                  f"({', '.join(over[:3])}). A subset cannot exceed its "
+                  f"set, so the two pipelines cover different ranges. "
+                  f"Rebuild both to the same height before trusting the "
+                  f"headline.")
+        elif gap:
+            print(f"  note: {len(gap)} month(s) have witness coverage but no "
+                  f"OP_RETURN coverage, so the deduction is not applied "
+                  f"there.")
+
     all_months = sorted(set(w_monthly) | set(o_monthly))
     if all_months:
         series = {k: [] for k in (
             "witness_content_mb", "witness_envelope_mb",
             "witness_content_ord_mb", "witness_content_other_mb",
             "opreturn_mb", "permitted_mb")}
+        if has_tx:
+            # THE PUBLISHED INSCRIPTION MEASURE.
+            #
+            # Whole serialized transactions, not envelopes. A reveal
+            # transaction exists for one reason — nobody builds one to
+            # move money — so every byte of it, signature and skeleton
+            # included, is caused by the inscription. A node stores
+            # transactions, so this is what a node stores because of
+            # them. Transfers are included on the same counterfactual:
+            # the thing being moved would not exist to move.
+            #
+            # witness_envelope_mb is still exported alongside. It is the
+            # payload alone, it is what the block grades use, and the
+            # difference between the two series IS the wrapper — which
+            # the page shows rather than buries.
+            series["witness_tx_mb"] = []
+            # And the two halves of it, separately, because they are not
+            # the same claim. A reveal wraps a payload in signatures; a
+            # transfer carries no payload at all and is attributed purely
+            # on the counterfactual that the thing being moved would not
+            # exist to move. Folding them together would let the page
+            # label whole transfer transactions as "overhead".
+            series["reveal_tx_mb"] = []
+            # Transfers, twice. FLOOR is what can be proved: the tagged
+            # dust input and the tagged output. CEILING is the whole
+            # transaction, right for a real transfer and wrong for a
+            # sweep. The published total uses the floor; the ceiling is
+            # exported so the page can state the bound instead of
+            # pretending there isn't one.
+            series["transfer_floor_mb"] = []
+            series["transfer_tx_mb"] = []
+            series["witness_tx_ceiling_mb"] = []
+            # NOTE the deduction is applied to reveal_tx_mb and
+            # transfer_tx_mb above, NOT here. Either side could carry it
+            # and the total is the same, but taking it on the inscription
+            # side leaves opreturn_mb as every OP_RETURN byte on chain —
+            # a figure anyone with a node can reproduce independently.
         run = defaultdict(float)
         for m in all_months:
             run["wc"] += w_monthly[m]["content_bytes"] / 1e6
             run["we"] += w_monthly[m]["envelope_bytes"] / 1e6
             run["wo"] += ord_monthly[m]["ord_content"] / 1e6
             run["wx"] += ord_monthly[m]["other_content"] / 1e6
-            run["or"] += o_monthly[m]["or_bytes"] / 1e6
+            # Stored bytes, not script bytes: the pile is a storage
+            # measure and a node keeps each output's value field and
+            # length prefix too. Older datasets have only the script
+            # figure, which reads ~9 bytes an output low.
+            run["or"] += (o_monthly[m].get("or_stored_bytes")
+                          or o_monthly[m].get("or_bytes", 0)) / 1e6
             series["witness_content_mb"].append(round(run["wc"], 1))
             series["witness_envelope_mb"].append(round(run["we"], 1))
             series["witness_content_ord_mb"].append(round(run["wo"], 1))
             series["witness_content_other_mb"].append(round(run["wx"], 1))
             series["opreturn_mb"].append(round(run["or"], 1))
+            if has_tx:
+                run["rv"] += (w_monthly[m]["reveal_tx_bytes"]
+                              - w_monthly[m].get("reveal_opreturn_bytes", 0)) / 1e6
+                run["tc"] += (w_monthly[m]["transfer_tx_bytes"]
+                              - w_monthly[m].get("transfer_opreturn_bytes", 0)) / 1e6
+                # The floor carries no OP_RETURN deduction: it counts
+                # tagged inputs and tagged outputs, and an OP_RETURN is
+                # never either of those.
+                run["tf"] += (w_monthly[m].get("transfer_input_bytes", 0)
+                              + w_monthly[m].get("transfer_output_bytes", 0)) / 1e6
+                run["wt"] = run["rv"] + run["tf"]
+                series["witness_tx_mb"].append(round(run["wt"], 1))
+                series["reveal_tx_mb"].append(round(run["rv"], 1))
+                series["transfer_floor_mb"].append(round(run["tf"], 1))
+                series["transfer_tx_mb"].append(round(run["tc"], 1))
+                series["witness_tx_ceiling_mb"].append(
+                    round(run["rv"] + run["tc"], 1))
 
             # WHAT THE OLD RULES PERMITTED.
             #
@@ -619,7 +746,15 @@ def main():
             #
             # Envelopes contribute nothing to it: an inscription is not
             # OP_RETURN and was never within that allowance.
-            run["pm"] += max(0, o_monthly[m]["or_bytes"]
+            #
+            # Stored bytes minus the SCRIPT bytes that exceeded policy.
+            # The two bases are deliberate: the pile is a storage figure,
+            # while the allowance was written against the script. An
+            # output the old rules permitted was stored with its value
+            # field and prefix like any other, so those framing bytes
+            # belong on the permitted side.
+            run["pm"] += max(0, (o_monthly[m].get("or_stored_bytes")
+                                 or o_monthly[m].get("or_bytes", 0))
                                 - o_monthly[m]["excess_bytes"]) / 1e6
             series["permitted_mb"].append(round(run["pm"], 1))
 
@@ -638,6 +773,26 @@ def main():
                       f"in witness_blocks.csv. The two files disagree — "
                       f"rebuild both from the same range before trusting "
                       f"the ORD ONLY view.")
+
+        # AND the same check on ENVELOPE bytes, which matters more now.
+        # The page draws the wrapper as reveal_tx_bytes minus the families
+        # total, so any disagreement between the two files does not show
+        # up as a missing slice — it is silently absorbed into
+        # "signatures & skeleton", the largest object on that chart.
+        # Tighter tolerance than the content check for exactly that
+        # reason: this one has somewhere to hide.
+        fam_env = sum(r["envelope_bytes"] for r in ct)
+        blk_env = sum(w_monthly[m]["envelope_bytes"] for m in all_months)
+        if blk_env and ct:
+            d = abs(fam_env - blk_env) / blk_env
+            if d > 0.002:
+                print(f"  WARNING: witness_content_types.csv holds "
+                      f"{fam_env / 1e9:.2f} GB of envelope bytes against "
+                      f"{blk_env / 1e9:.2f} GB in witness_blocks.csv "
+                      f"({d * 100:.2f}% apart). The made-of chart derives "
+                      f"'signatures & skeleton' by subtracting the first "
+                      f"from reveal_tx_bytes, so this gap lands there "
+                      f"instead of showing as a missing family.")
 
         write("cumulative.json", {
             "months": all_months,
@@ -667,6 +822,14 @@ def main():
             "utxo": utxo_series(all_months, w_monthly),
             "chainstate": chainstate_ratio(),
         }, meta)
+
+    tg = sum(w_monthly[m].get("transfer_inputs_tagged", 0) for m in w_monthly)
+    tt = sum(w_monthly[m].get("transfer_inputs_total", 0) for m in w_monthly)
+    if tt:
+        print(f"\n  transfer inputs: {tg:,} tagged of {tt:,} total "
+              f"({tg / tt * 100:.1f}%)")
+        print(f"  the lower that share, the more of the transfer ceiling is "
+              f"sweeping\n  rather than moving inscriptions.")
 
     print(f"\nExport complete — {generated_at}")
     for name, d in datasets.items():
