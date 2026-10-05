@@ -45,3 +45,7 @@ desktop.ini
 ~$*
 
 Help/
+.env.*
+!.env.example
+.env.*
+!.env.example

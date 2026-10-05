@@ -79,7 +79,27 @@ def rpc(method, params=None):
             if response.status_code in _TRANSIENT_STATUS:
                 raise requests.exceptions.ConnectionError(
                     f"HTTP {response.status_code} from the node")
-            body = response.json()
+            # Not transient and not JSON means the node answered with a
+            # refusal: a 401 on bad credentials, a 403 if rpcallowip
+            # excludes this host. Name it, rather than letting the JSON
+            # parser fail and bury the status code in a traceback.
+            if response.status_code == 401:
+                raise RuntimeError(
+                    "Node rejected the RPC credentials (HTTP 401). Check "
+                    "BITCOIN_RPC_USER / BITCOIN_RPC_PASSWORD in .env — and "
+                    "if you switched node software, the new service has "
+                    "its own password.")
+            if response.status_code == 403:
+                raise RuntimeError(
+                    "Node refused this host (HTTP 403). The RPC interface "
+                    "is not allowing connections from this machine.")
+            try:
+                body = response.json()
+            except ValueError:
+                raise RuntimeError(
+                    f"Node answered HTTP {response.status_code} but not with "
+                    f"JSON. Is {URL} the RPC port? First bytes: "
+                    f"{response.text[:120]!r}")
             if body.get("error"):
                 raise RuntimeError(f"RPC error on {method}: {body['error']}")
             if attempt > 1:
