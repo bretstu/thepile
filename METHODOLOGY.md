@@ -62,7 +62,7 @@ The tracker walks the chain strictly in order, starting thirty blocks before the
 
 Each entry is stored as the real outpoint rather than a hash, so any of them can be handed straight back to the node and confirmed unspent — the bookkeeping is auditable line by line, and no collision argument is needed anywhere.
 
-Size uses the node's own database-independent metric (`bogosize = 50 + script length`), converted to real bytes with the node's own `disk_size / bogosize` ratio, so every term in the conversion came off the node. As an outside check, counting every reveal output reproduces the figure mempool.space published in its UTXO Set Report — 51,188,145 at block 892,385 — from entirely separate code.
+Size uses the node's own database-independent metric (`bogosize = 50 + script length`), converted to real bytes with the node's own `disk_size / bogosize` ratio, so every term in the conversion came off the node. As an outside check, counting every reveal output lands within 0.01% of the figure mempool.space published in its UTXO Set Report — 51,183,173 here against their 51,188,145 at block 892,385 — from entirely separate code.
 
 ## Part three — where the numbers differ, and what they miss
 

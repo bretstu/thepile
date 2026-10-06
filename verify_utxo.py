@@ -262,15 +262,32 @@ else:
 
         # Because the database stores REAL outpoints, any of them can be
         # handed straight to the node. Every one still tagged must be
-        # unspent; if removals were being missed, this fails immediately.
+        # unspent AS OF THE DB'S HEIGHT. The node, though, answers for
+        # its own tip — and gettxout has no historical mode — so if the
+        # chain has moved on since the scan ended, an outpoint the DB
+        # rightly holds can have been spent in a block the tracker has
+        # never seen. That is the chain, not a missed removal. Only when
+        # the node and the DB agree on height is a spent sample a bug.
+        db_h = tr.height()
+        node_h = rpc("getblockcount")
+        lag = node_h - db_h
         sample = tr.sample(300)
         spent = [op for op in sample
                  if rpc("gettxout", [op.split(":")[0], int(op.split(":")[1])])
                  is None]
-        (ok if not spent else bad)(
-            f"{len(sample)} tagged outpoints are unspent on the node",
-            f"{len(spent)} are already spent — removals are being missed"
-            if spent else "")
+        if not spent:
+            ok(f"{len(sample)} tagged outpoints are unspent on the node",
+               f"DB at {db_h:,}, node at {node_h:,}" if lag else "")
+        elif lag > 0:
+            warn(f"{len(spent)} of {len(sample)} sampled outpoints are spent "
+                 f"on the node",
+                 f"node is {lag:,} blocks past the DB ({db_h:,} -> "
+                 f"{node_h:,}); these may have been spent since the scan. "
+                 f"Top up the scan to the tip and rerun to settle it.")
+        else:
+            bad(f"{len(sample)} tagged outpoints are unspent on the node",
+                f"{len(spent)} are already spent at the SAME height — "
+                f"removals are being missed")
 
         # And the standing count must equal the integrated CSV columns.
         (ok if st["tainted"] == standing else bad)(
