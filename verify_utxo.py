@@ -268,7 +268,7 @@ else:
         # rightly holds can have been spent in a block the tracker has
         # never seen. That is the chain, not a missed removal. Only when
         # the node and the DB agree on height is a spent sample a bug.
-        db_h = tr.height()
+        db_h = tr.height
         node_h = rpc("getblockcount")
         lag = node_h - db_h
         sample = tr.sample(300)
