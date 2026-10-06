@@ -1,31 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- The Pile: a heap, not a pyramid. Small squares (bytes) dumped into
-       a mound that slumps to the right, the way a pile actually sits.
-       Ink, with brick for inscriptions and one amber chip near the top
-       for the non-monetary slice, as on the chain bar. -->
+  <!-- The Pile. A soft, settled mound in three tiers, curling to a tip —
+       the universal silhouette of a pile. Site ink on parchment, with
+       the top of the curl in amber: the non-monetary slice, same colour
+       as the chain bar. No faces, no gloss; a glyph, not a cartoon. -->
   <rect width="64" height="64" rx="12" fill="#F5F2EA"/>
   <g fill="#191C22">
-    <!-- ground row: wide, uneven ends -->
-    <rect x="5"  y="48" width="8" height="8" rx="1.5"/>
-    <rect x="15" y="48" width="8" height="8" rx="1.5" fill="#A8433A"/>
-    <rect x="25" y="48" width="8" height="8" rx="1.5"/>
-    <rect x="35" y="48" width="8" height="8" rx="1.5"/>
-    <rect x="45" y="48" width="8" height="8" rx="1.5" fill="#A8433A"/>
-    <rect x="55" y="50" width="6" height="6" rx="1.5"/>
-    <!-- second: steep on the left, long on the right -->
-    <rect x="9"  y="38" width="8" height="8" rx="1.5"/>
-    <rect x="19" y="38" width="8" height="8" rx="1.5"/>
-    <rect x="29" y="38" width="8" height="8" rx="1.5" fill="#A8433A"/>
-    <rect x="39" y="38" width="8" height="8" rx="1.5"/>
-    <rect x="49" y="40" width="7" height="7" rx="1.5"/>
-    <!-- third: the crest sits left of centre -->
-    <rect x="13" y="28" width="8" height="8" rx="1.5" fill="#A8433A"/>
-    <rect x="23" y="28" width="8" height="8" rx="1.5"/>
-    <rect x="33" y="29" width="8" height="8" rx="1.5"/>
-    <rect x="43" y="31" width="7" height="7" rx="1.5"/>
-    <!-- crest -->
-    <rect x="18" y="18" width="8" height="8" rx="1.5"/>
-    <rect x="28" y="19" width="8" height="8" rx="1.5" fill="#A8433A"/>
-    <rect x="22" y="8"  width="8" height="8" rx="1.5" fill="#E09F3E"/>
+    <!-- base tier -->
+    <path d="M9 50 C9 42 16 38 24 38 L40 38 C48 38 55 42 55 50 C55 55 50 57 45 57 L19 57 C14 57 9 55 9 50 Z"/>
+    <!-- middle tier -->
+    <path d="M15 40 C15 33 21 29 27 29 L37 29 C43 29 49 33 49 40 C49 42 47 43 44 43 L20 43 C17 43 15 42 15 40 Z"/>
+    <!-- top tier -->
+    <path d="M21 31 C21 25 25 21 30 21 L34 21 C39 21 43 25 43 31 C43 33 41 34 39 34 L25 34 C23 34 21 33 21 31 Z"/>
+  </g>
+  <!-- the curl -->
+  <path d="M27 22 C27 15 31 11 36 10 C39 9.5 41 11 40 13 C39 15 35 15 33 17 C31 19 31 21 33 23 Z" fill="#E09F3E"/>
+  <!-- tier seams, so it reads as a swirl and not a blob -->
+  <g fill="none" stroke="#F5F2EA" stroke-width="2" stroke-linecap="round" opacity=".9">
+    <path d="M17 42 C24 41 40 41 47 42"/>
+    <path d="M23 33 C28 32 36 32 41 33"/>
   </g>
 </svg>
