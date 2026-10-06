@@ -11,18 +11,12 @@
 /data/
 /scratch/
 
-# Generated dashboard JSON. Ignore everything, then un-ignore the one
-# file the site actually reads. The others (meta, blocktape, monthlies,
-# families) fed the scrapped index.html; blocktape alone is one row per
-# block and would add megabytes of new blob to git on every re-export.
-# They regenerate in seconds from export.py, so re-add one the day a
-# page reads it.
-#
-# The pattern must be "dashboard/data/*" and not "dashboard/data/":
-# git cannot un-ignore a file inside an excluded DIRECTORY, only inside
-# excluded CONTENTS.
+# Generated dashboard JSON. None of it is tracked: the site reads
+# cumulative.json, live.json and live_history.json from R2, where
+# refresh.py and the poller publish them. Code goes through git; data
+# does not. Served locally, the page reads the files the export and the
+# poller just wrote here.
 dashboard/data/*
-!dashboard/data/cumulative.json
 
 # ---- python ----
 venv/

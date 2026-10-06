@@ -1,0 +1,11 @@
+[Unit]
+Description=thepile: refresh the historical dataset every 6 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=6h
+# If the machine was off when a run was due, run it on boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=thepile live block poller
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bretstu
+WorkingDirectory=/home/bretstu/projects/thepile
+ExecStart=/home/bretstu/projects/thepile/venv/bin/python -u live_poller.py
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

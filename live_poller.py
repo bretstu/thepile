@@ -28,7 +28,11 @@ from opreturn_classifier import classify_tx as classify_opreturn
 POLL_SECONDS = 5
 WINDOW = 40          # blocks in the draggable row (~7h of chain)
 BACKFILL = 24        # blocks classified on first-ever startup (~a minute)
-HISTORY_KEEP = 4320  # ~30 days of blocks kept in the history file
+# The history only has to cover the gap between the last published
+# export and the tip. refresh.py publishes every few hours, so a week is
+# a wide margin — if the timer stalls for longer than that, the odometer
+# starts missing live blocks and the staleness badge is the tell.
+HISTORY_KEEP = 1008  # ~7 days of blocks kept in the history file
 OUTFILE = os.path.join("dashboard", "data", "live.json")
 HISTORY = os.path.join("dashboard", "data", "live_history.json")
 

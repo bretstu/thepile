@@ -1,0 +1,8 @@
+[Unit]
+Description=thepile: monthly audit of the chainstate tracker against the node
+
+[Service]
+Type=oneshot
+User=bretstu
+WorkingDirectory=/home/bretstu/projects/thepile
+ExecStart=/home/bretstu/projects/thepile/venv/bin/python -u verify_utxo.py --node

@@ -726,7 +726,10 @@ let ODO_PROVENANCE = '';
 let CUM = null;
 async function seedOdometer(){
   try{
-    const r = await fetch('data/cumulative.json');
+    // Same switch as the live files: on thepile.space this comes from R2,
+    // where refresh.py publishes it every few hours; served locally it is
+    // the file export.py just wrote. Data never passes through git.
+    const r = await fetch(LIVE_BASE + '/data/cumulative.json?t=' + Date.now());
     if(!r.ok) throw 0;
     const c = await r.json();
     CUM = c;

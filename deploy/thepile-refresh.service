@@ -1,0 +1,13 @@
+[Unit]
+Description=thepile: advance the historical dataset to the tip and publish
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=bretstu
+WorkingDirectory=/home/bretstu/projects/thepile
+ExecStart=/home/bretstu/projects/thepile/venv/bin/python -u refresh.py
+# A run normally takes a minute or two. If the builders ever have days
+# of blocks to catch up on, let them.
+TimeoutStartSec=6h

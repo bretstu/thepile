@@ -62,15 +62,29 @@ could never overlap before, and now they can.
 One direction, no loops:
 
 ```
-Bitcoin node ──> builders ──> data/*.csv ──> export.py ──> dashboard/data/cumulative.json ──> static page
-                                                                                 ▲
-                             live_poller.py ──> dashboard/data/live.json ────────┘
+Bitcoin node ──> builders ──> data/*.csv ──> export.py ──> cumulative.json ──> R2 ──> static page
+                 (refresh.py, every 6h, to tip−6)                                 ▲
+                 live_poller.py (always on, the tip) ──> live.json ──────────────┘
 ```
 
-The page reads three JSON files and nothing else: `cumulative.json`
-from the export, `live.json` and `live_history.json` from the poller.
-All aggregation happens in Python; the browser does no math beyond
-drawing.
+The page reads three JSON files from R2 and nothing else: `cumulative.json`
+from the refresh, `live.json` and `live_history.json` from the poller.
+Code goes through git and deploys as a static page; data goes through
+R2 and never touches the repo. All aggregation happens in Python; the
+browser does no math beyond drawing.
+
+Two services keep it current, and they do different jobs:
+
+- **The poller** classifies each block as it lands — reveals and
+  OP_RETURN — and publishes within seconds. It follows the tip.
+- **The refresh** resumes the full builders every six hours to six blocks
+  below the tip, runs the chainstate tracker (transfers and the UTXO
+  burden need state walked in order), audits the result with `check.py`,
+  exports, and uploads. It never follows the tip, because the tracker's
+  committed state cannot be rewound through a reorg.
+
+The page stitches them at the export's last height: the historical total
+through that block, plus the poller's blocks above it.
 
 The dashboard is static files. There is no server, no database, and no
 inbound network surface — the node is never exposed.
@@ -85,6 +99,8 @@ inbound network surface — the node is never exposed.
 | `*_build_dataset.py` | Walk the chain, write the CSVs. Resumable; refuse to append across a schema change. |
 | `export.py` | CSVs → `cumulative.json`. |
 | `live_poller.py` | Watches the tip, classifies new blocks, publishes `live.json` to R2. |
+| `refresh.py` | Resumes the builders to tip−6, audits, exports, uploads `cumulative.json`. Scheduled. |
+| `deploy/` | systemd units for the poller, the refresh timer and a monthly tracker audit. |
 | `check.py` | Full-dataset integrity and version-consistency audit. No node needed. |
 | `verify_utxo.py` | Audits the tracker against the live node. |
 | `verify_block.py` | One block, re-derived and cross-checked against the CSVs. |
@@ -112,18 +128,32 @@ python test_opreturn_classifier.py
 python test_utxo_track.py
 ```
 
-Build the datasets, check them, export:
+Build the datasets the first time (hours to a day, resumable):
 
 ```bash
-python opreturn_build_dataset.py 1 <tip-10>          # from genesis: OP_RETURN
+python opreturn_build_dataset.py 1 <tip-6>           # from genesis: OP_RETURN
                                                      # history and the chain-size
                                                      # denominator
-python witness_build_dataset.py 767400 <tip-10>      # from just before the
+python witness_build_dataset.py 767400 <tip-6> 3     # from just before the
                                                      # first inscription
 python check.py                                      # integrity + version audit
 python verify_utxo.py --node                         # tracker vs the live node
 python export.py
 ```
+
+After that, nothing is run by hand. Install the services:
+
+```bash
+./deploy/install.sh
+```
+
+That starts the poller, a refresh timer (every 6 hours; `refresh.py`
+resumes both builders, audits, exports, uploads) and a monthly tracker
+audit. To refresh immediately: `sudo systemctl start thepile-refresh`.
+To watch one: `journalctl -u thepile-refresh -n 40 --no-pager`.
+
+The only manual steps left are pushing code, and rebuilding `data/`
+from scratch when a CSV schema changes.
 
 Then serve the dashboard:
 
