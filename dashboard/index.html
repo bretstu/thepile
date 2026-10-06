@@ -207,8 +207,13 @@
      viewport between a phone floor and a cap. The cap matters: past
      ~190px a block stops reading as one object in a chain and starts
      reading as a panel. */
+  /* ONE LOOK FOR EVERY BLOCK. The cards used to take a colour from a
+     tier class — pure / light / typical / heavy — and the tier was a
+     judgment about what "typical" meant. That is gone: every card is the
+     same ink, and the percentage and its bar are the whole message. --c
+     is the number's colour and nothing else varies by block. */
   .block{--d:11px;
-         --c:var(--dim); --tintbg:var(--tint-none);
+         --c:var(--t-brick); --tb:var(--edge-brick); --tintbg:var(--tint-none);
          position:relative;flex:0 0 var(--bw);width:var(--bw);
          aspect-ratio:1;border-radius:3px;
          margin-right:var(--d);
@@ -280,40 +285,7 @@
         margin-top:clamp(7px,.6vw,10px);
         background:var(--panel);color:var(--c)}
   .fill i{position:absolute;left:0;top:0;bottom:0;border-radius:2px}
-  .fill .all{background:var(--bar-all)}
-  .fill .bey{background:currentColor}
-
-  /* A tier is now ONE decision: the colour variable, the outline, the
-     face wash and the glow all follow from it. */
-  /* PURE — inverted: a lit face instead of a dark one, and the only
-     card on the row whose glow moves. The bob animation has to be
-     restated here because declaring `animation` replaces the shorthand
-     rather than adding to it. */
-  /* PURE stays the odd one out, but the mechanism flips: on a dark page
-     it was the only LIT card, on paper it is the only FILLED one. Same
-     categorical break — every neighbour is white with a coloured edge —
-     and the halo becomes a ring that widens rather than a glow that
-     brightens, because paper does not glow. */
-  .block.pure   {--c:var(--t-pure);--tb:var(--edge-pure);--tintbg:var(--tint-pure);
-                 background:var(--pure-bg);
-                 animation:bob 7s ease-in-out infinite,
-                           pureGlow 3.4s ease-in-out infinite}
-  @keyframes pureGlow{
-    0%,100%{filter:var(--halo-pure-a)}
-    50%    {filter:var(--halo-pure-b)}
-  }
-  .block.pure .dot{width:9px;height:9px}
-  .block.pure .h{color:var(--pure-ink)}
-  /* A word is wider than "0.03%", so it gets its own size. */
-  .block.pure .share{font-size:clamp(21px,1.72vw,29px);letter-spacing:1.5px}
-  .block.pure .sharelabel{color:var(--c);opacity:.95}
-  /* The empty bar is the point: nothing to draw. Make the track itself
-     read as deliberate rather than as a bar that failed to render. */
-  .block.pure .fill{background:var(--pure-track)}
-  .block.light  {--c:var(--t-blue);--tb:var(--edge-blue);--tintbg:var(--tint-blue)}
-  .block.typical{--c:var(--t-amber);--tb:var(--edge-amber);--tintbg:var(--tint-amber)}
-  .block.heavy  {--c:var(--t-brick);--tb:var(--edge-brick);--tintbg:var(--tint-brick);
-                 filter:var(--halo-heavy)}
+  .fill .all{background:currentColor}
 
   .miner{position:absolute;left:0;right:0;bottom:-24px;text-align:center;
          font-size:clamp(9.5px,.76vw,11.5px);color:var(--dim);
@@ -352,13 +324,6 @@
   .block.settle.light{animation:settle .7s cubic-bezier(.2,.9,.3,1),
                       coolBirth 1.6s ease-out}
   @keyframes coolBirth{30%{filter:var(--birth-light)}}
-  .block.settle.pure{animation:settle .7s cubic-bezier(.2,.9,.3,1),
-                     pureBirth 2.6s ease-out}
-  @keyframes pureBirth{
-    0%{filter:var(--birth-pure-a)}
-    35%{filter:var(--birth-pure-b)}
-    100%{filter:var(--halo-pure-a)}
-  }
 
   /* odometer */
   /* A centred caption belonging to the
@@ -472,26 +437,11 @@
                border-top:1px solid var(--line-2);
                font-size:13px;color:var(--dim);letter-spacing:.18em;
                text-align:center}
-  #cleanbar{display:flex;justify-content:space-between;align-items:baseline;
-            gap:24px;flex-wrap:wrap;margin-top:14px;
-            font-size:13px;color:var(--dim)}
-  #cleanstat b{color:var(--text);font-weight:500}
+  /* The one live summary line under the block row: what arrived in the
+     trailing window. No legend — there are no categories to key. */
+  #livebar{display:flex;justify-content:flex-end;align-items:baseline;
+           margin-top:14px;font-size:13px;color:var(--dim)}
   #daystat b{color:var(--text);font-weight:500}
-  #cleanstat .big{color:var(--amber);font-size:17px;font-weight:500}
-  /* One child now that the median note is gone, so space-between would be
-     a lie waiting to break if anything is ever added beside it. */
-  #tierbar{display:flex;align-items:baseline;
-           gap:24px;flex-wrap:wrap;margin-top:4px;font-size:12px;color:var(--dim)}
-  .legend-keys{display:flex;gap:20px;flex-wrap:wrap;font-size:11px;letter-spacing:.04em}
-  .key{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
-  .key em{font-style:normal;color:var(--text)}
-  .sw{width:11px;height:11px;border-radius:2px;display:inline-block;flex:0 0 auto}
-  /* PURE is filled and lit; BELOW TYPICAL is outlined and cooler-blue.
-     Two teal outlines side by side were indistinguishable. */
-  .sw.pure{border:1px solid var(--t-pure);background:var(--t-pure)}
-  .sw.light{border:1px solid var(--t-blue);background:var(--t-blue)}
-  .sw.typ{border:1px solid var(--t-amber);background:var(--t-amber)}
-  .sw.data{border:1px solid var(--t-brick);background:var(--t-brick)}
   /* Not a centrepiece: one bar, a legend, and the finding in a line.
      The detail lives in the methodology table below. */
   #madeof{margin-top:52px;padding-top:30px;padding-bottom:0;
@@ -592,7 +542,7 @@
   }
   @media (max-width:700px){
     #chainlegend{justify-content:flex-start!important}
-    #cleanbar,#tierbar{gap:12px}
+    #livebar{justify-content:flex-start}
   }
 
   @media (prefers-reduced-motion: reduce){*{animation:none!important}}
@@ -650,17 +600,7 @@
   </div>
 
 
-  <div id="cleanbar"><span id="cleanstat"></span><span id="daystat"></span></div>
-
-
-  <div id="tierbar">
-    <span class="legend-keys">
-      <span class="key"><i class="sw pure"></i>CLEAN <em>nothing new</em></span>
-      <span class="key"><i class="sw light"></i>BELOW TYPICAL <em id="r_low">—</em></span>
-      <span class="key"><i class="sw typ"></i>TYPICAL <em id="r_mid">—</em></span>
-      <span class="key"><i class="sw data"></i>ABOVE TYPICAL <em id="r_high">—</em></span>
-    </span>
-  </div>
+  <div id="livebar"><span id="daystat"></span></div>
 
   <section id="madeof">
     <div class="chartlabel">WHAT THE PILE IS MADE OF</div>
@@ -723,8 +663,9 @@
               output is attributable</dd>
             <dd><b>The coinbase OP_RETURN.</b> That is the SegWit
               commitment, protocol machinery rather than carried data</dd>
-            <dd>Script-only size is tracked separately, because the old
-              83-byte rule governed the script rather than the output</dd>
+            <dd>Script-only size is also recorded in the data, since the
+              pre-2025 relay rule governed the script. Nothing on this
+              page is graded against it</dd>
           </dl>
         </div>
       </div>
@@ -894,16 +835,13 @@
           itself in its first byte, so finding them needs no heuristics
           and no protocol list — the script either starts that way or it
           does not.</p>
-        <p>Each one is measured twice, because two different questions are
-          being asked of it. The <b>stored</b> size is what a node keeps
-          on disk, and feeds the total above. The <b>script</b> size is
-          what the pre-v30 relay rule capped at 83 bytes, and feeds the
-          per-block grades below. Mixing them would compare a storage
-          figure against a policy limit that never governed storage.</p>
-        <p>Bytes past that allowance are tracked as <b>excess</b>, and
-          because v30 relaxed two rules at once — the size cap and the
-          one-output limit — a transaction breaking only the count rule is
-          recorded separately from one carrying oversized data.</p>
+        <p>Each one is counted at its <b>stored</b> size — what a node
+          keeps on disk — and that is the figure every number on this page
+          uses. The script size alone, which the pre-v30 relay rule capped
+          at 83 bytes, is still written to the dataset for anyone studying
+          the policy history, but no figure here is derived from it.
+          Mixing the two would compare a storage figure against a limit
+          that never governed storage.</p>
       </div>
 
       <div class="mblock">
@@ -936,22 +874,26 @@
     <div class="mgrid">
 
       <div class="mblock">
-        <h4>Two measures, on purpose</h4>
-        <p>The total above is a <b>storage</b> measure: what a node
-          carries because this data exists. It answers what the pile
-          costs.</p>
-        <p>The live block section answers a different question and uses a
-          narrower measure. Each block there is graded on what the
-          pre-2023 defaults would not have carried — the inscription
-          <b>payload</b> alone, plus only the OP_RETURN <b>beyond</b> the
-          old 83-byte allowance. Signatures are left out because any
-          transaction needs them, and ordinary OP_RETURN is left out
-          because it was a deliberate, uncontroversial channel; including
-          it would lay a constant background across every block and hide
-          the thing worth seeing.</p>
-        <p>So the percentages on the blocks, the colour bands and the
-          clean-block count all use that narrower measure. Nothing else on
-          the page does, and the two are never added together.</p>
+        <h4>One measure, everywhere</h4>
+        <p>Every figure on this page — the total, the chart, the share on
+          each live block — is the same quantity: bytes a node stores
+          because non-monetary data exists. Whole inscription
+          transactions, every OP_RETURN output at its stored size, and the
+          chainstate entries left behind.</p>
+        <p>The live blocks are not graded or colour-coded. A block's
+          percentage and its bar are the measurement; whether it is high
+          or low is for the reader, against the chain-wide figure at the
+          top. An earlier version of this page ranked blocks against a
+          "typical" band and counted blocks that carried nothing the
+          pre-2023 relay rules would have refused. Both were judgments
+          about rules rather than measurements of storage, and both are
+          gone.</p>
+        <p>One difference remains between a live block and the total:
+          transfers. Identifying a transfer needs the tagged outpoint set
+          the historical tracker builds, which the live poller does not
+          carry, so the per-block share counts reveal transactions and
+          OP_RETURN only. It reads a little under the chain-wide rate, and
+          in the conservative direction.</p>
       </div>
 
       <div class="mblock">
@@ -1042,14 +984,6 @@ function plainDays(d){
 }
 
 let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
-// The per-block tier thresholds, filled in from cumulative.json's _meta
-// once it loads. Declared here — not just assigned later — so tierOf can
-// read it during the first live poll, which may fire before the
-// cumulative fetch resolves. Undeclared, that early read throws a
-// ReferenceError that kills the whole poll: no block feed, and the
-// odometer (set at the end of poll) never updates either. The guard in
-// tierOf handles the not-yet-loaded case, but only if the name exists.
-let TIERS = null;
 // Shown on hover over the headline rather than printed under it.
 let ODO_PROVENANCE = '';
 let CUM = null;
@@ -1059,55 +993,6 @@ async function seedOdometer(){
     if(!r.ok) throw 0;
     const c = await r.json();
     CUM = c;
-    const lc = c._meta?.last_clean;
-    if(lc){
-      const el = $('cleanstat');
-      if(lc.block){
-        const days = (Date.now()/1000 - lc.block.time) / 86400;
-        el.innerHTML =
-          `<span class="big">${plainDays(days)}</span> since a block contained ` +
-          `nothing the old rules would have blocked`;
-        el.title = `Block ${lc.block.height.toLocaleString()}`
-          + (lc.unmeasured_above > 1000
-             ? `. ${(lc.unmeasured_above/1000).toFixed(0)}k newer blocks are not `
-               + `yet scanned, so a more recent one may exist.` : '.');
-      } else {
-        el.innerHTML = `<span class="big">no data-free block</span> anywhere in the scanned range`;
-      }
-
-    }
-
-    const t = c._meta?.tiers;
-    if(t){
-      TIERS = t;  // assignment; declaration is at module scope above
-      const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const nice = s => { const [y,m] = s.split('-'); return `${MON[+m-1]} ${y}`; };
-      // Grading live blocks against a window that ended long ago is an
-      // apples-to-oranges comparison. Say so rather than let the tiers
-      // look authoritative.
-      // Numbers belong next to the colour they describe, not in a
-      // separate line of percentages the reader has to map back.
-      const pc = v => (v*100).toFixed(v < 0.01 ? 2 : 1) + '%';
-      $('r_low').textContent  = `< ${pc(t.p25)}`;
-      $('r_mid').textContent  = `${pc(t.p25)}–${pc(t.p75)}`;
-      $('r_high').textContent = `> ${pc(t.p75)}`;
-      // On the legend it describes, not beside it. The bands are the
-      // thing a reader sees; how they were derived is what they ask only
-      // if they doubt them.
-      $('tierbar').title =
-        `Bands set by the last ${t.window_blocks.toLocaleString()} blocks `
-        + `(${nice(t.derived_from[0])} – ${nice(t.derived_from[1])}). `
-        + `Median block ${pc(t.median)}.`;
-      // any blocks already drawn used the fallback floor; restyle them
-      // Blocks drawn before the thresholds arrived all defaulted to the
-      // top tier; reclassify them now that the bands are known.
-      document.querySelectorAll('.block[data-share]').forEach(el => {
-        const s = parseFloat(el.dataset.share || '0');
-        const t = tierOf({beyond_bytes: s === 0 ? 0 : 1, beyond_share: s});
-        el.classList.remove('light', 'typical', 'heavy');
-        el.classList.add(t);
-      });
-    }
     // MUST match what the poller adds per live block. Both sides now
     // count WHOLE inscription transactions — a reveal exists only to
     // publish its payload, so every byte of it is caused by the
@@ -1219,57 +1104,19 @@ function odoFrame(){
 // uniform within a tier — scaling it too would be a fourth encoding of
 // one number.
 
-// Which quartile band a block falls in. PURE is exact-zero, not a band.
-// Tiers grade a block on BEYOND-BASELINE bytes only — what post-2022
-// policy changes enabled. A block full of ordinary sub-83-byte
-// OP_RETURNs counts as pure: that channel was the 2014 settlement.
-function beyondShare(b){
-  return b.beyond_share !== undefined ? b.beyond_share : b.data_share;
-}
-function beyondBytes(b){
-  return b.beyond_bytes !== undefined ? b.beyond_bytes : b.data_bytes;
-}
-// How rare a clean block is THIS YEAR, straight from the dataset:
-// by_year carries blocks and clean counts per year, so the ratio is a
-// measurement rather than a slogan. Recomputed on export, so it stays
-// true as the year goes on instead of ageing into a stale claim.
-// NOT live, and it does not need to be: this is a rate over 20,000 blocks,
-// so one more clean block moves 675/32,558 to 676/32,559 — still 1 in 48.
-// It takes about twenty before the displayed figure changes at all.
+// ONE MEASURE PER BLOCK: non-monetary bytes as a share of the block.
+// The same storage measure the headline uses — whole inscription
+// transactions plus every OP_RETURN output at stored size — so a visitor
+// who reads "10% of the chain" at the top and then looks at a block is
+// looking at the same thing.
 //
-// The window is the trailing 20,000 blocks, the same one the tier bands
-// use. A calendar year was the wrong unit twice over: it resets each
-// January to a sample too thin to quote (100 blocks with 3 clean reads
-// "1 in 33"), and by December it is averaging across a regime change that
-// happened in February. A fixed trailing window has neither failure, and
-// sharing TIER_WINDOW means "recent" means one thing on this page.
-//
-// by_year is kept as a fallback for datasets exported before the window
-// existed, with a floor so a thin year is never quoted.
-const RARITY_MIN_BLOCKS = 4000;   // ~4 weeks of chain
-
-function pureRarity(){
-  const lc = CUM?._meta?.last_clean;
-  const w = lc?.recent;
-  if(w && w.pct) return {oneIn: Math.round(100 / w.pct),
-                         window: w.window_blocks, months: w.months};
-
-  const years = lc?.by_year;
-  if(!Array.isArray(years) || !years.length) return null;
-  const usable = years.filter(y => y && y.pct && y.blocks >= RARITY_MIN_BLOCKS);
-  const y = usable.length ? usable[usable.length - 1] : null;
-  if(!y) return null;
-  const current = y.year === new Date().getUTCFullYear();
-  return {year: y.year, current, oneIn: Math.round(100 / y.pct)};
-}
-
-function tierOf(b){
-  if(beyondBytes(b) === 0) return 'pure';
-  if(!TIERS) return 'heavy';
-  const s = beyondShare(b);
-  if(s < TIERS.p25) return 'light';
-  if(s < TIERS.p75) return 'typical';
-  return 'heavy';
+// No tiers. A quartile band is a judgment about what "typical" means,
+// over a window somebody chose, frozen at a moment somebody chose. The
+// number and its bar are the measurement; what to make of them is the
+// reader's. Older live.json rows carry beyond_share from the retired
+// policy measure; it is ignored.
+function shareOf(b){
+  return b.data_share !== undefined ? b.data_share : 0;
 }
 
 function fmtAge(s){
@@ -1299,17 +1146,6 @@ function fmtShare(pct){
   if(pct >= 0.1) return pct.toFixed(1);
   if(pct < 0.005) return '<0.01';
   return pct.toFixed(2).replace(/0$/, '');
-}
-
-// "1 IN 40 RECENT BLOCKS" reads two ways, and the wrong one is the more
-// natural: one clean block out of a set of forty, rather than a rate of
-// one in every forty. "EVERY" is the word that closes it — it cannot be
-// read as a count. The window and the date range move to the tooltip;
-// the label's job is the rate, not its provenance.
-function pureLabel(){
-  const r = pureRarity();
-  if(!r) return 'NOTHING BEYOND OLD LIMITS';
-  return `1 IN EVERY ${r.oneIn} BLOCKS`;
 }
 
 // THE PENDING SLOT.
@@ -1347,13 +1183,9 @@ function blockEl(b, isNew){
   el.addEventListener('animationend', e => {
     if(e.animationName === 'settle') el.classList.remove('settle');
   });
-  const tier = tierOf(b);
-  const pure = tier === 'pure';
-  el.className = 'block ' + tier + (isNew ? ' settle' : '');
-  el.dataset.share = beyondShare(b);
-
-  const pct = beyondShare(b) * 100;
-  const allPct = (b.data_share !== undefined ? b.data_share : beyondShare(b)) * 100;
+  el.className = 'block' + (isNew ? ' settle' : '');
+  const pct = shareOf(b) * 100;
+  el.dataset.share = shareOf(b);
   const kind = contentKind(b);
 
   el.innerHTML = `
@@ -1369,47 +1201,24 @@ function blockEl(b, isNew){
       ${kind.size ? `<div class="typesize">${kind.size}</div>` : ''}
     </div>
     <div>
-      <div class="share">${pure ? (isEmpty(b) ? 'EMPTY' : 'CLEAN')
-        : fmtShare(pct) + '<span>%</span>'}</div>
-      <div class="sharelabel">${pure
-        ? (isEmpty(b) ? 'NOT COUNTED AS CLEAN' : pureLabel())
-        : 'BEYOND OLD LIMITS'}</div>
-      <div class="fill">
-        <i class="all" style="width:${barWidth(allPct)}%"></i>
-        <i class="bey" style="width:${barWidth(pct)}%"></i>
-      </div>
+      <div class="share">${isEmpty(b) ? 'EMPTY' : fmtShare(pct) + '<span>%</span>'}</div>
+      <div class="sharelabel">${isEmpty(b) ? 'NO TRANSACTIONS' : 'NON-MONETARY'}</div>
+      <div class="fill"><i class="all" style="width:${barWidth(pct)}%"></i></div>
     </div>
     ${b.miner ? `<div class="miner">⛏ ${b.miner}</div>` : ''}`;
 
-  if(pure && !isEmpty(b)){
-    const r = pureRarity();
-    // The tooltip carries what the label cannot: the basis for the rate,
-    // and the frequency it works out to. A ratio sounds rarer than it
-    // feels — one in forty blocks is three or four a day — and a reader
-    // who checks should find that stated rather than discover it.
-    if(r && r.window) el.querySelector('.sharelabel').title =
-      `One block in every ${r.oneIn} carries nothing the old rules would `
-      + `have blocked — about ${(144 / r.oneIn).toFixed(1)} a day.\n`
-      + `Measured over the last ${r.window.toLocaleString()} blocks`
-      + (r.months ? ` (${r.months[0]} – ${r.months[1]}).` : '.');
-    else if(r) el.querySelector('.sharelabel').title =
-      `One block in every ${r.oneIn} carries nothing the old rules would `
-      + `have blocked — about ${(144 / r.oneIn).toFixed(1)} a day`
-      + (r.year ? `, measured across ${r.year}.` : '.');
-  }
-
+  // The bar is the number drawn as a length: a linear share of the
+  // block, so a row of bars shows the outlier without a colour telling
+  // the reader which one it is.
   el.querySelector('.fill').title =
-    `bar = share of this block\n` +
-    `lit:  ${pct.toFixed(2)}% beyond the old limits\n` +
-    `dim:  ${allPct.toFixed(2)}% all non-monetary`;
+    `${pct.toFixed(2)}% of this block is non-monetary data`;
 
   const lnk = document.createElement('i');
   lnk.className = 'lnk';
   el.appendChild(lnk);
 
   el.title = `block ${b.height}\n` +
-    `beyond old limits: ${beyondBytes(b).toLocaleString()} B\n` +
-    `all non-monetary: ${b.data_bytes.toLocaleString()} B\n` +
+    `non-monetary: ${(b.data_bytes || 0).toLocaleString()} B\n` +
     `block size: ${b.block_size.toLocaleString()} B`;
   return el;
 }
@@ -1434,45 +1243,42 @@ const KIND_MAP = [
   ['json', 'code', 'JSON', 'JSON'], ['text', 'text', 'TEXT', 'text'],
 ];
 
-// The centre zone: what kind of thing this block is carrying, and how
-// much of it. Icon plus one word reads faster than a byte count alone.
-// When a block has BOTH an inscription and OP_RETURN excess, showing
-// "608 B +7 B" answers a question nobody asked (two unlabelled numbers
-// added together). Instead: show whichever component is larger — that
-// is what actually earned the block's tier — and name the other one
-// explicitly in the tooltip rather than mashing both into one line.
 // An EMPTY block carries no data because it carries nothing at all —
-// mined before validation finished, not because anyone chose restraint.
-// export.py excludes empty blocks from the clean-block rate for exactly
-// that reason, so the dashboard must not badge one CLEAN and quote a rate
-// it was never counted in. They are ~1 in 400 blocks, which would
-// otherwise inflate what a viewer sees by about a tenth.
+// mined before validation finished. It gets its own word so a 0% from
+// restraint and a 0% from emptiness are never confused, and it is
+// excluded from nothing because there is no longer a rate to exclude it
+// from.
 function isEmpty(b){
-  return beyondBytes(b) === 0 && (b.tx_count || 0) === 0;
+  return (b.tx_count || 0) === 0;
 }
 
+// What the card's middle shows: the kind of non-monetary data that
+// dominates this block, and how much of it. Inscriptions win if present
+// (the envelope family names the content); otherwise it is OP_RETURN, at
+// the full stored size a node keeps. Older live rows may carry only the
+// script-size figure, which reads a few bytes low.
 function contentKind(b){
   if(isEmpty(b))
     return {icon:'clean', word:'NO TRANSACTIONS', size:'',
             label:'an empty block — mined before validation completed, so it '
                 + 'carries no data because it carries nothing'};
-  if(beyondBytes(b) === 0)
-    return {icon:'clean', word:'NOTHING NEW', size:'',
-            label:'nothing the old rules would have blocked'};
   const fam = (b.top_family || '').toLowerCase();
   const env = b.envelope_bytes || 0;
-  const exc = b.opreturn_excess_bytes || 0;
+  const orb = b.opreturn_bytes || b.opreturn_script_bytes || 0;
 
+  if(env === 0 && orb === 0)
+    return {icon:'clean', word:'NONE', size:'',
+            label:'no inscription or OP_RETURN data in this block'};
   if(env === 0)
-    return {icon:'data', word:'OP_RETURN', size:fmtBytes(exc),
-            label:`${fmtBytes(exc)} of OP_RETURN beyond the old 83-byte allowance`};
+    return {icon:'data', word:'OP_RETURN', size:fmtBytes(orb),
+            label:`${fmtBytes(orb)} of OP_RETURN output data`};
 
   let icon = 'data', word = 'DATA', full = 'inscribed data';
   for(const [key, ic, w, name] of KIND_MAP)
     if(fam.includes(key)){ icon = ic; word = w; full = name; break; }
 
   let label = `${fmtBytes(env)} inscribed — largest family: ${full}`;
-  if(exc > 0) label += `\nplus ${fmtBytes(exc)} OP_RETURN beyond the old allowance`;
+  if(orb > 0) label += `\nplus ${fmtBytes(orb)} of OP_RETURN`;
   return {icon, word, label, size: fmtBytes(env)};
 }
 
@@ -1540,12 +1346,30 @@ async function poll(){
   // Same rounding everywhere — 44.3 GB in the legend beside 44.275 GB in
   // the odometer reads as two different numbers to anyone not looking
   // closely, so both now come off the same value at the same precision.
+  //
+  // DENOMINATOR: prefer the from-node serialized total (CUM.chain), which
+  // is summed from block_size across the genesis OP_RETURN scan — same
+  // units as the pile. Fall back to the live poller's size_on_disk only
+  // if that export isn't present; it is compressed on-disk bytes plus
+  // undo files, so it is both wrong-units and too large, and the bar
+  // understates against it. The numerator is odoTarget in serialized
+  // bytes either way.
+  const chain = CUM && CUM.chain;
+  const denom = chain ? chain.serialized_bytes : d.chain_bytes;
   let chainPct = null;
-  if(d.chain_bytes > 0 && odoTarget > 0){
-    chainPct = odoTarget / d.chain_bytes * 100;
+  if(denom > 0 && odoTarget > 0){
+    chainPct = odoTarget / denom * 100;
     $('chainbarwrap').style.display = 'block';
+    // If the genesis scan hasn't finished, the denominator is real but
+    // partial — say so, rather than implying it is the whole chain.
+    const partial = chain && !chain.from_genesis;
+    const label = (chain && chain.from_genesis)
+      ? 'THE WHOLE BLOCKCHAIN'
+      : partial
+        ? `THE CHAIN THROUGH BLOCK ${chain.scanned_to.toLocaleString()}`
+        : 'THE WHOLE BLOCKCHAIN';
     $('chaintitle').innerHTML =
-      `THE WHOLE BLOCKCHAIN · <b>${(d.chain_bytes/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
+      `${label} · <b>${(denom/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
     $('chainfill').style.width = chainPct.toFixed(2) + '%';
     // Shares only: the title above states the chain size and the headline
     // states the pile, so repeating either here is the third printing of
@@ -1867,11 +1691,6 @@ function odoBreakdown(){
   }).join('');
 }
 
-// Named once: the legend entry, the tooltip's total, and the series all
-// have to agree, and a typo between them would silently drop the line
-// from the sum.
-const PERMITTED_NAME = 'Old rules allowed';
-
 function renderPile(){
   if(!CUM || typeof echarts === 'undefined'){ $('pilechart').style.display='none'; return; }
   const months = CUM.months;
@@ -1881,11 +1700,6 @@ function renderPile(){
   const wGB = (CUM.witness_tx_mb || CUM.witness_envelope_mb)
     .map(v=>+(v/1000).toFixed(2));
   const oGB = CUM.opreturn_mb.map(v=>+(v/1000).toFixed(2));
-  // Absent from datasets exported before this series existed; the chart
-  // simply omits the line rather than failing.
-  const pGB = Array.isArray(CUM.permitted_mb)
-    ? CUM.permitted_mb.map(v=>+(v/1000).toFixed(2)) : null;
-
   // Chainstate, in real bytes. bogosize is Core's database-independent
   // size metric and means nothing on its own; the node's own
   // disk_size/bogosize ratio turns it into bytes actually on disk. If the
@@ -1939,8 +1753,7 @@ function renderPile(){
         const rows = ps.map(x =>
           `${x.marker}${x.seriesName}<b style="float:right;margin-left:18px">` +
           `${(+x.value).toFixed(2)} GB</b>`);
-        const stacked = ps.filter(x => x.seriesName !== PERMITTED_NAME);
-        const total = stacked.reduce((a, x) => a + (+x.value || 0), 0);
+        const total = ps.reduce((a, x) => a + (+x.value || 0), 0);
         return `<div style="margin-bottom:4px">${ps[0].axisValue}</div>` +
                rows.join('<br>') +
                `<div style="margin-top:5px;padding-top:4px;` +
@@ -1973,13 +1786,6 @@ function renderPile(){
                    areaStyle:{opacity:.65}, symbol:'none',
                    lineStyle:{width:1.5},
                    color:CT.s3, data:csGB}] : []),
-      // The channel that existed before any of this — drawn as a bare line,
-      // no fill, so it reads as a reference level rather than a third
-      // quantity stacked on the others.
-      ...(pGB ? [{name:PERMITTED_NAME, type:'line',
-                  smooth:true, symbol:'none', z:5,
-                  lineStyle:{width:1.6, type:'dashed'}, color:CT.dim,
-                  data:pGB}] : []),
     ]
   });
   addEventListener('resize', ()=>pileChart.resize());

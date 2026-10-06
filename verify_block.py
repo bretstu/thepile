@@ -41,11 +41,10 @@ def main(height):
     size = block.get("size", 0)
 
     envelope = content = 0
-    or_bytes = or_excess = or_outside = 0
+    or_bytes = or_excess = or_script = 0
     or_outputs = 0
     insc_tx = 0
     env_txs = []
-    excess_txs = []
 
     for tx in txs:
         w = classify_tx_witness(tx)
@@ -61,23 +60,23 @@ def main(height):
                             w["envelope_count"], tx.get("size", 0)))
         o = classify_opreturn(tx)
         if o:
-            or_bytes += o["total_bytes"]
+            or_bytes += o["stored_bytes"]
+            or_script += o["total_bytes"]
             or_outputs += o["opreturn_count"]
-            # Bytes inside a transaction already charged whole above are
-            # not charged a second time here.
-            if not has_envelope:
-                or_outside += o["total_bytes"]
-            if o["excess_bytes"]:
-                or_excess += o["excess_bytes"]
-                excess_txs.append((tx.get("txid", "")[:16], o["excess_bytes"],
-                                   o["opreturn_count"]))
+            # Deducted from the inscription side, so or_bytes stays every
+            # OP_RETURN byte in this block.
+            if has_envelope:
+                insc_tx -= o["stored_bytes"]
+            # Still summed so the CSV cross-check below can prove the
+            # classifier and the builder agree on it; not a measure of
+            # anything the page shows.
+            or_excess += o["excess_bytes"]
 
     # Transfers are not recomputed here: identifying them needs the tagged
     # outpoint set, which is state this one-block tool does not carry. The
     # figure below is therefore the reveal side only, and the CSV's
     # transfer_tx_bytes is printed beside it rather than folded in.
-    data_bytes = insc_tx + or_outside
-    beyond_bytes = envelope + or_excess
+    data_bytes = insc_tx + or_bytes
 
     print(f"\nBLOCK {height:,}   {block_hash[:32]}...")
     print(f"  client {CLIENT}")
@@ -85,27 +84,17 @@ def main(height):
 
     print(f"\n  COMPONENTS")
     print(f"    inscription transaction bytes   {insc_tx:>12,}"
-          f"   in {len(env_txs):,} txs")
+          f"   in {len(env_txs):,} txs, OP_RETURN deducted")
     print(f"      (of which envelope)           {envelope:>12,}")
     print(f"      (of which stored content)     {content:>12,}")
-    print(f"    OP_RETURN bytes, all sizes      {or_bytes:>12,}"
+    print(f"    OP_RETURN stored bytes, all     {or_bytes:>12,}"
           f"   in {or_outputs:,} outputs")
-    print(f"      (inside inscription txs)      {or_bytes - or_outside:>12,}"
-          f"   deducted, already charged above")
-    print(f"    OP_RETURN beyond old allowance  {or_excess:>12,}")
-
-    print(f"\n  MEASURE 1 — all non-monetary (pile, odometer)")
-    print(f"    insc txs + OP_RETURN outside    {data_bytes:>12,}"
+    print(f"      (of which script)             {or_script:>12,}"
+          f"   the rest is value + length prefix")
+    print(f"\n  NON-MONETARY (the one measure the page uses)")
+    print(f"    insc txs + all OP_RETURN        {data_bytes:>12,}"
           f"   = {data_bytes / size * 100:.3f}% of block" if size else "")
     print(f"    (reveals only — transfers need the tagged set)")
-
-    print(f"\n  MEASURE 2 — beyond old limits (tiers, pure clock)")
-    print(f"    envelope + OP_RETURN excess     {beyond_bytes:>12,}"
-          f"   = {beyond_bytes / size * 100:.3f}% of block" if size else "")
-    print(f"    difference is ordinary OP_RETURN traffic:"
-          f" {data_bytes - beyond_bytes:,} B")
-    if beyond_bytes == 0:
-        print(f"    -> PURE: nothing here the pre-2023 rules would have blocked")
 
     if env_txs:
         env_txs.sort(key=lambda x: -x[3])
@@ -115,11 +104,6 @@ def main(height):
                   f"  {n} envelope(s)")
     else:
         print(f"\n  No inscription envelopes in this block.")
-
-    if excess_txs:
-        print(f"\n  TXS EXCEEDING THE OLD OP_RETURN ALLOWANCE ({len(excess_txs)})")
-        for txid, b, n in excess_txs[:6]:
-            print(f"    {txid}...  {b:>9,} B excess  {n} output(s)")
 
     # ---- independent cross-check against the builders' output ----
     wb = csv_row("witness_blocks.csv", height)
@@ -140,7 +124,7 @@ def main(height):
                       f"   {'match' if match else '*** MISMATCH ***'}")
         if ob:
             for label, mine, theirs in (
-                ("or_bytes", or_bytes, int(ob["or_bytes"])),
+                ("or_bytes", or_script, int(ob["or_bytes"])),
                 ("excess_bytes", or_excess, int(ob["excess_bytes"])),
             ):
                 match = mine == theirs

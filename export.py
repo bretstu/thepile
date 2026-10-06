@@ -88,19 +88,6 @@ BOOTSTRAP_MAX_OPS = 8_000_000
 
 BOOTSTRAP_MIN_ITERS = 300
 
-# Shorter than TIER_WINDOW on purpose. The clean-block rate is DRIFTING —
-# 1.55% in January 2026, 2.68% in July — so a 20,000-block window (~4.6
-# months) averages across a near-doubling and publishes a figure the
-# recent chain no longer matches: 1 in 45 against a trailing-10,000 rate
-# of 1 in 40 and a July rate of 1 in 37.
-#
-# 10,000 blocks is ~10 weeks, still ~250 clean events, so the 95% interval
-# is 1 in 36 to 1 in 46 — tight enough to quote and current enough to be
-# true. The tier bands keep the longer window because a distribution of
-# byte shares is far less sensitive to this drift than a rate of a rare
-# event is.
-CLEAN_WINDOW = 10_000
-
 # Envelopes are OP_FALSE OP_IF ... OP_ENDIF — an unexecutable branch.
 # Nothing inside is ever evaluated by the script interpreter, so an
 # envelope has no monetary function; carrying data is all it can do.
@@ -110,8 +97,43 @@ CLEAN_WINDOW = 10_000
 # correctness filter, and using it alone understates the total.
 ORD_PROTOCOLS = {"ord"}
 
-# How many recent blocks feed the tier threshold.
-TIER_WINDOW = 20_000
+def chain_size(opreturn_rows):
+    """Whole-chain serialized byte total and how far it reaches.
+
+    The OP_RETURN dataset carries block_size for every block it scanned,
+    and that scan runs from genesis — so summing block_size is the true
+    size of the chain over the scanned range, in serialized bytes, off
+    the node. This is the scale-bar denominator.
+
+    Returns the total, the height it reaches, and whether that height is
+    close enough to a full chain for the bar to drop its coverage caveat.
+    A partial genesis scan still produces a usable (smaller) denominator
+    and an honest "measured through block N" label, rather than a wrong
+    one that looks complete.
+    """
+    if not opreturn_rows:
+        return None
+    total = 0
+    lo = hi = None
+    for r in opreturn_rows:
+        bs = r.get("block_size")
+        if bs in (None, "", 0):
+            continue
+        total += int(bs)
+        h = int(r["height"])
+        lo = h if lo is None else min(lo, h)
+        hi = h if hi is None else max(hi, h)
+    if not total:
+        return None
+    return {
+        "serialized_bytes": total,
+        "scanned_from": lo,
+        "scanned_to": hi,
+        # The scan starts at genesis, so "from 1" plus a tip-ish "to"
+        # means the denominator is genuinely whole-chain. The page uses
+        # this to decide whether to show a coverage caveat.
+        "from_genesis": lo is not None and lo <= 10,
+    }
 
 
 def month_key(ts):
@@ -173,7 +195,14 @@ def main():
              "or_outputs", "or_bytes", "or_stored_bytes", "or_max_size",
              "nonstandard_txs",
              "excess_bytes", "over_by_size_txs", "over_by_count_txs",
-             "nonstandard_fees_sat"]
+             "nonstandard_fees_sat",
+             # Serialized block size, from the node. Present because the
+             # OP_RETURN scan runs from genesis, so summing it gives an
+             # honest whole-chain denominator for the scale bar — same
+             # units as the pile (serialized bytes), unlike the live
+             # poller's size_on_disk which counts compressed data plus
+             # undo files the chain does not contain.
+             "block_size"]
     T_INT = ["height", "block_time", "envelopes", "content_bytes",
              "envelope_bytes"]
 
@@ -212,138 +241,46 @@ def main():
                            month_key(ob[-1]["block_time"])],
         }
 
-    # ---- display tiers for the live portal ------------------------------
-    # "Clean" blocks are effectively extinct: routine protocol traffic
-    # (Runes, bridge memos, commitments) puts data in nearly every block.
-    # A two-colour scheme therefore paints everything the same. The
-    # BASELINE tier separates that routine floor from blocks genuinely
-    # carrying stored content, using the 10th percentile of recent blocks
-    # rather than a number picked by hand.
-    #
-    # FROZEN at export time on purpose. A threshold that floats per-render
-    # would silently change what a colour means, breaking comparison
-    # across time. It updates when you re-export, and the page states the
-    # window it came from.
-    tiers = None
-    if ob and wb:
-        wsize = {r["height"]: r["block_size"] for r in wb}
-        # Walk the most recent heights that exist in BOTH datasets. Taking
-        # the last N OP_RETURN rows would find nothing while the witness
-        # scan trails behind — the threshold would silently vanish and the
-        # BASELINE tier would never render.
-        joined = [r for r in ob if r["height"] in wsize][-TIER_WINDOW:]
-        # BEYOND-BASELINE share: inscription envelopes (never sanctioned)
-        # plus OP_RETURN bytes past the pre-v30 allowance. Ordinary small
-        # OP_RETURNs are excluded — that channel was deliberately created
-        # in 2014, so counting it would measure the settlement rather than
-        # the departure from it.
-        shares = [
-            (r["excess_bytes"] + w_env.get(r["height"], 0)) / wsize[r["height"]]
-            for r in joined if wsize[r["height"]]
-        ]
-        if len(shares) >= 100:
-            ordered = sorted(shares)
-
-            def pct(p):
-                return round(ordered[min(len(ordered) - 1,
-                                         int(len(ordered) * p / 100))], 5)
-
-            # Quartiles, not a floor. A 10th-percentile threshold put 90%
-            # of blocks in one bucket, which answered "is this block
-            # unusually quiet?" — the wrong question. The median pivot
-            # answers "is this block better or worse than what is now
-            # normal?", and makes the normal itself the finding.
-            tiers = {
-                "p25": pct(25), "median": pct(50),
-                "p75": pct(75), "p95": pct(95),
-                "baseline_share": pct(50),
-                "window_blocks": len(shares),
-                "derived_from": [month_key(joined[0]["block_time"]),
-                                 month_key(joined[-1]["block_time"])],
-            }
-
-    # ---- last data-free block ------------------------------------------
-    # A block with at least one transaction and zero non-monetary bytes.
-    # Empty blocks (no txs) are excluded: they are mined before validation
-    # completes and are pure by accident, not by demand.
-    last_clean = None
-    if ob and wb:
-        wenv = {r["height"]: r["envelope_bytes"] for r in wb}
-        for r in reversed(ob):
-            h = r["height"]
-            if h not in wenv:
-                continue
-            if r["excess_bytes"] == 0 and wenv[h] == 0 and r["tx_count"] > 0:
-                last_clean = {"height": h, "time": r["block_time"],
-                              "tx_count": r["tx_count"]}
-                break
-        joined_end = max((r["height"] for r in ob if r["height"] in wenv),
-                         default=0)
-
-        # Yearly rate of data-free blocks. Empty blocks are excluded on
-        # both sides of the ratio, so the trend reflects demand for clean
-        # blockspace rather than variation in how often pools mine empty.
-        by_year = defaultdict(lambda: {"n": 0, "clean": 0})
-        for r in ob:
-            h = r["height"]
-            if h not in wenv or r["tx_count"] == 0:
-                continue
-            y = datetime.fromtimestamp(r["block_time"], timezone.utc).year
-            d = by_year[y]
-            d["n"] += 1
-            if r["excess_bytes"] == 0 and wenv[h] == 0:
-                d["clean"] += 1
-        years = [{"year": y,
-                  "blocks": v["n"],
-                  "clean": v["clean"],
-                  "pct": round(v["clean"] / v["n"] * 100, 4)}
-                 for y, v in sorted(by_year.items()) if v["n"] >= 500]
-
-        # Trailing-window rate. A calendar year is the wrong unit: it
-        # resets every January to a sample of a few hundred blocks, and by
-        # December it averages across whatever changed in February. See
-        # CLEAN_WINDOW for why this window is shorter than the tier one.
-        joined_rows = sorted((r for r in ob
-                              if r["height"] in wenv and r["tx_count"] > 0),
-                             key=lambda r: r["height"])[-CLEAN_WINDOW:]
-        recent = None
-        if len(joined_rows) >= 2000:
-            rc = sum(1 for r in joined_rows
-                     if r["excess_bytes"] == 0 and wenv[r["height"]] == 0)
-            recent = {"window_blocks": len(joined_rows),
-                      "clean": rc,
-                      "pct": round(rc / len(joined_rows) * 100, 4),
-                      "height_range": [joined_rows[0]["height"],
-                                       joined_rows[-1]["height"]],
-                      "months": [month_key(joined_rows[0]["block_time"]),
-                                 month_key(joined_rows[-1]["block_time"])]}
-
-        last_clean = {"block": last_clean, "coverage_end": joined_end,
-                      "by_year": years, "recent": recent,
-                      "unmeasured_above": max(0, max(wenv, default=0) and
-                                              ob[-1]["height"] - joined_end)}
-
+    # One measure. The policy figure that used to sit beside it — tier
+    # bands over "beyond the old allowance" shares, and the last block
+    # that carried nothing the pre-2023 rules would have refused — is
+    # gone, along with the windows that fed it. Both graded blocks
+    # against relay rules; neither measured what a node stores.
     meta = {"generated_at": generated_at, "datasets": datasets,
-            "events": EVENTS, "tiers": tiers, "last_clean": last_clean,
+            "events": EVENTS,
             "measures": {
                 "pile": "all non-monetary bytes a node must store: the "
-                        "whole reveal and transfer transactions, plus "
-                        "every OP_RETURN byte outside them, plus the "
-                        "chainstate entries inscriptions leave behind",
-                "beyond": "only what post-2022 policy changes enabled: "
-                          "inscription envelopes + OP_RETURN beyond the "
-                          "pre-v30 allowance of one output at 83 bytes",
+                        "whole reveal transactions, the provable floor "
+                        "of transfers, every OP_RETURN output at stored "
+                        "size, plus the chainstate entries inscriptions "
+                        "leave behind",
             }}
     write("meta.json", {}, meta)
 
-    # ---- block tape: one entry per sampled witness block ----------------
+    # ---- block tape: one entry per witness block -------------------------
+    # Per-block non-monetary share on the SAME basis the live poller
+    # uses: reveal transactions (less any OP_RETURN inside them) plus
+    # every OP_RETURN output at stored size. Transfers are left out here
+    # too, so a historical block and a live block are the same
+    # quantity. The headline adds the transfer floor; this does not, and
+    # the methodology says so.
     if wb:
-        tape = [[r["height"],
-                 round(r["envelope_bytes"] / r["block_size"], 4)
-                 if r["block_size"] else 0,
-                 r["block_time"]] for r in wb]
+        o_by_h = {r["height"]: r for r in ob} if ob else {}
+        tape = []
+        for r in wb:
+            bs = r["block_size"]
+            if not bs:
+                tape.append([r["height"], 0, r["block_time"]])
+                continue
+            o = o_by_h.get(r["height"])
+            or_stored = ((o.get("or_stored_bytes") or o.get("or_bytes", 0))
+                         if o else 0)
+            nm = (r.get("reveal_tx_bytes", 0)
+                  - r.get("reveal_opreturn_bytes", 0)
+                  + or_stored)
+            tape.append([r["height"], round(nm / bs, 4), r["block_time"]])
         write("blocktape.json",
-              {"columns": ["height", "envelope_share", "block_time"],
+              {"columns": ["height", "nonmonetary_share", "block_time"],
                "rows": tape}, meta)
 
     # ---- monthly witness aggregates --------------------------------------
@@ -662,7 +599,7 @@ def main():
         series = {k: [] for k in (
             "witness_content_mb", "witness_envelope_mb",
             "witness_content_ord_mb", "witness_content_other_mb",
-            "opreturn_mb", "permitted_mb")}
+            "opreturn_mb")}
         if has_tx:
             # THE PUBLISHED INSCRIPTION MEASURE.
             #
@@ -735,28 +672,6 @@ def main():
                 series["witness_tx_ceiling_mb"].append(
                     round(run["rv"] + run["tc"], 1))
 
-            # WHAT THE OLD RULES PERMITTED.
-            #
-            # Not a counterfactual — this page does not claim to know what
-            # would have existed, because relay policy was never consensus
-            # and blocked data can move to a cheaper carrier. This is a
-            # subtraction: OP_RETURN minus the part that exceeded the
-            # pre-v30 allowance, which is exactly the channel Bitcoin
-            # deliberately opened in 2014 and nobody objected to.
-            #
-            # Envelopes contribute nothing to it: an inscription is not
-            # OP_RETURN and was never within that allowance.
-            #
-            # Stored bytes minus the SCRIPT bytes that exceeded policy.
-            # The two bases are deliberate: the pile is a storage figure,
-            # while the allowance was written against the script. An
-            # output the old rules permitted was stored with its value
-            # field and prefix like any other, so those framing bytes
-            # belong on the permitted side.
-            run["pm"] += max(0, (o_monthly[m].get("or_stored_bytes")
-                                 or o_monthly[m].get("or_bytes", 0))
-                                - o_monthly[m]["excess_bytes"]) / 1e6
-            series["permitted_mb"].append(round(run["pm"], 1))
 
         # Reconcile: the ord/other split comes from witness_content_types.csv
         # while the totals come from witness_blocks.csv. Both are summed from
@@ -821,6 +736,19 @@ def main():
             # labels it is drawn with.
             "utxo": utxo_series(all_months, w_monthly),
             "chainstate": chainstate_ratio(),
+            # THE HONEST SCALE-BAR DENOMINATOR.
+            #
+            # Sum of every block's serialized size across whatever range
+            # the OP_RETURN scan has reached (it runs from genesis). Same
+            # units as the pile. The page divides the pile by this instead
+            # of the live node's size_on_disk, which is compressed on-disk
+            # bytes plus undo files — wrong units and not even all chain.
+            #
+            # scanned_to lets the page say honestly how much of the chain
+            # this covers: if the genesis scan is only partway, the bar
+            # states "chain measured through block N" rather than implying
+            # it has the whole thing.
+            "chain": chain_size(ob),
         }, meta)
 
     tg = sum(w_monthly[m].get("transfer_inputs_tagged", 0) for m in w_monthly)
