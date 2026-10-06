@@ -118,14 +118,25 @@ derive_mismatch = sum(
     "insc_output_bytes == insc_bogo_added - 41 x insc_added",
     f"{derive_mismatch:,} blocks disagree" if derive_mismatch else "")
 
-# Containment: the whole transaction must be at least as big as the
-# outputs it contains.
-contain = sum(1 for r in rows
-              if r["reveal_tx_bytes"] and
-              r["reveal_tx_bytes"] < r["insc_output_bytes"])
-(ok if not contain else bad)(
-    "reveal_tx_bytes contains insc_output_bytes",
-    f"{contain:,} blocks violate" if contain else "")
+# Containment: a transaction is at least as big as the outputs it
+# contains. insc_output_bytes counts EVERY tagged output created in the
+# block — reveal-created and transfer-created alike — so it is compared
+# against both transaction columns, each against its own share.
+# (An earlier version compared reveal_tx_bytes alone against the whole
+# figure, which fails on any block where transfers outnumber reveals.)
+def _tov(r): return r.get("transfer_output_bytes", 0)
+contain_r = sum(1 for r in rows
+                if r["reveal_tx_bytes"] and
+                r["reveal_tx_bytes"] < r["insc_output_bytes"] - _tov(r))
+(ok if not contain_r else bad)(
+    "reveal_tx_bytes contains the reveal-created outputs",
+    f"{contain_r:,} blocks violate" if contain_r else "")
+contain_t = sum(1 for r in rows
+                if r.get("transfer_tx_bytes", 0) and
+                r["transfer_tx_bytes"] < _tov(r))
+(ok if not contain_t else bad)(
+    "transfer_tx_bytes contains the transfer-created outputs",
+    f"{contain_t:,} blocks violate" if contain_t else "")
 
 mix_mismatch = sum(
     1 for r in rows
