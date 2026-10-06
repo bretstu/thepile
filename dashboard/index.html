@@ -393,16 +393,9 @@
      than the first — only marked differently. */
   .acct{margin-top:14px}
   .acct dl{margin:0}
-  /* COUNTED gets a check in teal; NOT COUNTED a cross in the dim ink.
-     The short rules that used to sit here read as minus signs beside
-     the word "counted", which is the one thing a marker must not do. */
+  /* Two plain headings. No marker, no colour — the word says which. */
   .acct dt{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-           color:var(--teal);font-weight:600;margin:16px 0 7px;
-           display:flex;align-items:center;gap:7px}
-  .acct dt::before{content:"\2713";font-size:13px;line-height:1;
-                   font-weight:700;width:13px;text-align:center}
-  .acct dt.out{color:var(--dim);font-weight:500}
-  .acct dt.out::before{content:"\2715";font-size:11px;font-weight:600}
+           color:var(--text);font-weight:600;margin:16px 0 7px}
   .acct dd{font-size:12.5px;line-height:1.75;color:var(--dim);
            margin:0 0 7px 22px;position:relative}
   .acct dd::before{content:"";position:absolute;left:-14px;top:.72em;
@@ -617,14 +610,14 @@
             <dd>When an inscription is moved: the inscribed coin going in,
               and the one it becomes</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>The transaction before it.</b> Every inscription needs
+            <dd>The transaction before it. Every inscription needs
               a setup transaction first. It looks like a normal payment,
               so nothing identifies it. This is the biggest thing we
               miss</dd>
-            <dd><b>The rest of a move.</b> Fees and change. A transaction
+            <dd>The rest of a move. Fees and change. A transaction
               moving an inscription might be doing ordinary business too,
               and there is no way to tell</dd>
-            <dd><b>OP_RETURN inside it.</b> Counted under OP_RETURN
+            <dd>OP_RETURN inside it. Counted under OP_RETURN
               instead, so it is never counted twice</dd>
           </dl>
         </div>
@@ -642,9 +635,9 @@
             <dd>Every OP_RETURN output on the chain, at the size a node
               stores it</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>The rest of the transaction.</b> It is usually moving
+            <dd>The rest of the transaction. It is usually moving
               money too</dd>
-            <dd><b>The one in every coinbase.</b> That is protocol
+            <dd>The one in every coinbase. That is protocol
               bookkeeping, not data someone added</dd>
           </dl>
         </div>
@@ -661,15 +654,15 @@
             <dd>Inscription coins of 1,000 satoshis or less that are still
               unspent</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>Change</b> sent back to whoever made the inscription.
+            <dd>Change sent back to whoever made the inscription.
               That is normal money</dd>
-            <dd><b>Coins that merely descend from one.</b> Being
+            <dd>Coins that merely descend from one. Being
               downstream of an inscription does not make a coin an
               inscription</dd>
           </dl>
           <p class="head note">Change is counted under Inscriptions but
             not here. That is on purpose: the inscription caused those
-            bytes to be <i>written</i>, so they count there — but the
+            bytes to be written, so they count there — but the
             coin itself is money and will be spent, so it is not a
             permanent burden on every node.</p>
         </div>
