@@ -607,8 +607,8 @@
           <dl>
             <dt>Counted</dt>
             <dd>The whole transaction that writes an inscription</dd>
-            <dd>When an inscription is moved: the inscribed coin going in,
-              and the one it becomes</dd>
+            <dd>When an inscription is moved: the inscribed output going
+              in, and the one it becomes</dd>
             <dt class="out">Not counted</dt>
             <dd>The transaction before it. Every inscription needs
               a setup transaction first. It looks like a normal payment,
@@ -646,24 +646,24 @@
       <div class="mblock">
         <h4>Chainstate</h4>
         <div class="acct">
-          <p class="head">Every inscription sits on a tiny coin. It is worth
-            less than the fee to spend it, so it <b>never moves</b> — and
-            every node keeps it in its working memory, forever.</p>
+          <p class="head">Every inscription sits on an unspent output worth
+            a few hundred satoshis. That is less than the fee to spend it,
+            so it <b>never moves</b> — and every node keeps it in its
+            working memory, forever.</p>
           <dl>
             <dt>Counted</dt>
-            <dd>Inscription coins of 1,000 satoshis or less that are still
-              unspent</dd>
+            <dd>Inscription outputs of 1,000 satoshis or less that are
+              still unspent</dd>
             <dt class="out">Not counted</dt>
             <dd>Change sent back to whoever made the inscription.
               That is normal money</dd>
-            <dd>Coins that merely descend from one. Being
-              downstream of an inscription does not make a coin an
-              inscription</dd>
+            <dd>Outputs that merely descend from one. Being downstream of
+              an inscription does not make an output an inscription</dd>
           </dl>
           <p class="head note">Change is counted under Inscriptions but
             not here. That is on purpose: the inscription caused those
             bytes to be written, so they count there — but the
-            coin itself is money and will be spent, so it is not a
+            output itself is money and will be spent, so it is not a
             permanent burden on every node.</p>
         </div>
       </div>
@@ -673,9 +673,9 @@
     <p class="mfoot"><b>Nothing is counted twice.</b> An inscription
       transaction is counted once. OP_RETURN is counted only outside
       those transactions. Chainstate is a separate database — a node
-      really does store the same coin once in its block history and once
-      in its list of live coins, so counting both is counting what the
-      node holds.</p>
+      really does store the same output once in its block history and
+      once in its set of unspent outputs, so counting both is counting
+      what the node holds.</p>
 
     <p class="mfoot"><b>Every figure is a floor.</b> Setup transactions
       are missed, moves and chainstate are counted at their minimum, and
