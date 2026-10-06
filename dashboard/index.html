@@ -261,15 +261,22 @@
      are not: OP_RETURN is where bytes live, text is what some of them
      say. The content type is now the icon beside the inscriptions row,
      and the detail lives in the tooltip. */
-  .zmid{display:flex;flex-direction:column;gap:3px;color:var(--dim)}
-  .carrier{display:flex;align-items:center;gap:6px}
-  .ico{width:clamp(12px,.95vw,15px);height:clamp(12px,.95vw,15px);
+  /* The card's inner width is ~120-145px, so these rows are sized to fit
+     "INSCRIBED 178 KB" at the narrowest and clip rather than overflow
+     if anything ever does not: the label can shrink and ellipsise, the
+     number cannot. Bytes are printed compactly (178 KB, not 178.3 KB)
+     for the same reason. */
+  .zmid{display:flex;flex-direction:column;gap:3px;color:var(--dim);
+        min-width:0;overflow:hidden}
+  .carrier{display:flex;align-items:center;gap:5px;min-width:0}
+  .ico{width:clamp(11px,.85vw,14px);height:clamp(11px,.85vw,14px);
        opacity:.9;flex:0 0 auto}
-  .typeword{font-size:clamp(8.5px,.68vw,10.5px);color:var(--dim);
-            letter-spacing:.11em;white-space:nowrap}
-  .typesize{margin-left:auto;font-size:clamp(11px,.9vw,14px);
+  .typeword{font-size:clamp(8px,.62vw,9.5px);color:var(--dim);
+            letter-spacing:.06em;white-space:nowrap;
+            flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .typesize{flex:0 0 auto;font-size:clamp(10.5px,.84vw,13px);
             color:var(--text);font-weight:500;font-family:var(--mono);
-            letter-spacing:.01em;white-space:nowrap;
+            letter-spacing:0;white-space:nowrap;
             font-variant-numeric:tabular-nums}
   .carrier.none .typesize{color:var(--dim);font-weight:400}
 
@@ -347,11 +354,6 @@
   #accounting{margin-top:38px}
   #accounting .sectionlead{margin-top:0}
   #accounting .sectionsub{font-size:12px;max-width:88ch}
-  #method{margin-top:38px}
-  /* The heading inside already carries the rule and the spacing. Without
-     this the section drew a second one and left a dead band between. */
-  #method .sectionlead{margin-top:0}
-  #method .sectionsub{font-size:12px;max-width:88ch}
   /* Prose is left-aligned and measured. The centred captions elsewhere get
      away with it because they are one line; a paragraph does not. */
 
@@ -379,28 +381,10 @@
             margin-bottom:13px}
   .mblock p:last-child{margin-bottom:0}
   .mblock b{color:var(--text);font-weight:500}
-  /* Inline code inside prose, distinct from the .rule display block. */
-  .mblock code:not(.rule){color:var(--text);font-size:12px;
-                          background:var(--panel);padding:1px 5px;
-                          border-radius:2px;white-space:nowrap}
-  /* The actual rule, quoted rather than described. */
-  .rule{display:block;font-size:13px;line-height:1.6;background:var(--panel);
-        border-left:2px solid var(--t-amber);padding:11px 15px;margin:14px 0;
-        color:var(--text);border-radius:0 3px 3px 0;overflow-x:auto}
   .mfoot{margin:34px auto 0;text-align:left;font-size:12px;
          color:var(--dim);opacity:.85;line-height:1.8;
          padding-top:22px;border-top:1px solid var(--line-2)}
-
-  /* Part headings inside the method section. Quieter than .sectionlead —
-     these divide one section, they do not start a new one. NOT .mpart,
-     which is already the made-of blob. */
-  .mlead{margin:54px auto 0;padding-bottom:11px;
-         border-bottom:1px solid var(--line);
-         font-size:12px;color:var(--text);letter-spacing:.2em;
-         text-transform:uppercase}
-  .mlead:first-of-type{margin-top:36px}
-  .mlead span{color:var(--dim);letter-spacing:.05em;
-              text-transform:none;font-size:12px}
+  .mfoot + .mfoot{margin-top:18px;padding-top:0;border-top:0}
 
   /* ---- the accounting summary --------------------------------------
      The rules, stated before the story that explains them. Two ledger
@@ -428,10 +412,6 @@
      raise it. Set off from the ledger above rather than appended to it. */
   .acct .note{margin-top:16px;padding-top:13px;
               border-top:1px solid var(--line);font-size:12px}
-  /* Inline code inside prose, distinct from the .rule display block. */
-  .mblock code:not(.rule){color:var(--text);font-size:11px;
-                          background:var(--panel);padding:1px 4px;
-                          border-radius:2px}
 
   /* Same shape as .odolabel and .chartlabel — three sections, three
      headings that look alike. The rule above it is what marks the change
@@ -719,231 +699,17 @@
       once in block history as a record of what happened and once in the
       chainstate as an index of what exists now. Counting both is not
       double counting — it is what the node holds.</p>
-  </section>
 
-  <section id="method">
-    <div class="sectionlead">WHERE THIS DATA CAME FROM, AND HOW IT IS READ</div>
-    <div class="sectionsub">every figure on this page comes from parsing each
-      block on a full node — no indexers, no third-party APIs, no
-      sampling</div>
-
-    <div class="mlead">Part one <span>— how it got there</span></div>
-
-    <div class="mgrid">
-
-      <div class="mblock">
-        <h4>Inscriptions — an accident, then a market</h4>
-        <p>An inscription is a file — an image, a line of text, a token
-          ticket — hidden inside the part of a transaction that normally
-          holds signatures. It rides in a script branch that opens on a
-          condition that is always false, so the interpreter skips the
-          whole branch without ever reading it. It cannot affect whether
-          the payment is valid, which leaves those bytes exactly one
-          purpose: being stored.</p>
-        <code class="rule">OP_FALSE OP_IF &lt;data&gt; OP_ENDIF</code>
-        <p>None of this was designed. SegWit in 2017 moved signatures into
-          a separate witness area and priced those bytes at roughly a
-          quarter of the normal rate — a fix for transaction malleability,
-          with cheap storage as a side effect. Taproot in 2021 then
-          removed the limit on how large a single script could be, so that
-          complex spending conditions would fit — and, unintended, so
-          would a script the size of an entire block. Two upgrades, each
-          reasonable alone, combined into a large discounted slot guarded
-          only by the rule that a branch which never runs is never
-          examined.</p>
-        <p>In December 2022 a developer demonstrated the gap by using it;
-          the first inscription sits in block 767,430. Within weeks the
-          technique shipped as a public tool with a convention that
-          assigns each inscription to an individual satoshi, giving the
-          data an owner — NFTs on Bitcoin. Text-token mints followed in
-          2023 and came to dominate by count. It was raised with Bitcoin
-          Core as a gap in the data limits; the maintainers declined to
-          filter it, on the reasoning that a relay filter does not bind
-          miners and would mostly push the traffic out of view.</p>
-        <p><b>The point that matters for measurement:</b> inscriptions are
-          not a feature that was switched on. They are a seam between two
-          upgrades — found, then productised. There was never a rule
-          against them to relax.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>OP_RETURN — the deliberate one</h4>
-        <p>OP_RETURN is the opposite story: a data channel added on
-          purpose. By 2014 people were already embedding data in fake
-          addresses, which forces every node to carry those unspendable
-          "coins" in its working memory forever. Bitcoin Core 0.9 offered
-          a lesser evil — an output type that is provably unspendable, so
-          a node stores it once in block history and never adds it to the
-          list of live coins. It launched at 40 bytes of payload, settled
-          at 80, and stayed there for a decade.</p>
-        <p>In October 2025 Bitcoin Core v30 removed that default cap:
-          multiple OP_RETURN outputs per transaction, up to roughly 100
-          KB. That is the Core v30 marker on the chart above.</p>
-        <p>Every node still downloads, verifies and stores every byte of
-          it, exactly like inscription data. What it avoids is the second,
-          permanent cost — it never enters the chainstate. That difference
-          is the entire reason the third category exists.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>Chainstate — the permanent residue</h4>
-        <p>The chainstate is the database of every coin that currently
-          exists, which every node keeps on hand to check whether the next
-          transaction is spending something real. Inscription dust enters
-          it and stays: spending a few hundred satoshis costs more in fees
-          than it recovers, so tens of millions of these outputs now sit
-          in every node's working set.</p>
-        <p>This is data doing precisely what OP_RETURN was invented in
-          2014 to prevent.</p>
-        <p>It is also different in kind from everything above. Blocks are
-          history: a pruned node deletes them and carries on validating.
-          The chainstate is <b>state</b> — no setting removes an entry
-          while the coin exists. So the smallest number on this page is
-          the only permanent one, and it is the one that decides whether
-          modest hardware can still run a node in ten years.</p>
-      </div>
-
-    </div>
-
-    <div class="mlead">Part two <span>— how the node is read</span></div>
-
-    <div class="mgrid">
-
-      <div class="mblock">
-        <h4>Reading the witness</h4>
-        <p>Each witness script is walked token by token — Bitcoin Script
-          is a fully specified grammar, so every byte belongs to exactly
-          one token — and <code>OP_FALSE OP_IF</code> is matched to its
-          <code>OP_ENDIF</code> by depth, so a conditional nested inside
-          an envelope cannot close it early. An envelope with no matching
-          <code>OP_ENDIF</code> is not counted at all.</p>
-        <p>Detection is structural, not a list of protocols. The shape of
-          the script is the whole test, so the same rule that caught the
-          first inscription in 2022 catches whatever is invented next,
-          with no code change and no guess at intent.</p>
-        <p>Every witness byte then lands in exactly one bucket, and the
-          sum is asserted on every single input:</p>
-        <code class="rule">envelope + overhead + residual = total witness bytes</code>
-        <p>The <b>residual</b> is everything the parser could not
-          attribute, published alongside the headline so a novel embedding
-          trick appears as a spike rather than vanishing. Each block's
-          totals are also checked against <code>size − strippedsize</code>,
-          a figure the node reports independently and the parser never
-          touches.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>Reading the outputs</h4>
-        <p>Every output in every block is examined. An OP_RETURN announces
-          itself in its first byte, so finding them needs no heuristics
-          and no protocol list — the script either starts that way or it
-          does not.</p>
-        <p>Each one is counted at its <b>stored</b> size — what a node
-          keeps on disk — and that is the figure every number on this page
-          uses. The script size alone, which the pre-v30 relay rule capped
-          at 83 bytes, is still written to the dataset for anyone studying
-          the policy history, but no figure here is derived from it.
-          Mixing the two would compare a storage figure against a limit
-          that never governed storage.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>Tracking the chainstate</h4>
-        <p>The tracker walks the chain strictly in order, starting thirty
-          blocks before the first inscription — so the tagged set begins
-          <b>genuinely empty</b>, with nothing inherited and nothing
-          estimated. Outputs are tagged as they are created and untagged
-          the moment the chain spends them. Order matters within a block
-          too: a transaction can spend an output an earlier transaction in
-          the same block created.</p>
-        <p>Each entry is stored as the real outpoint rather than a hash,
-          so any of them can be handed straight back to the node and
-          confirmed unspent — the bookkeeping is auditable line by line,
-          and no collision argument is needed anywhere.</p>
-        <p>Size uses the node's own database-independent metric
-          (<code>bogosize = 50 + script length</code>), converted to real
-          bytes with the node's own <code>disk_size / bogosize</code>
-          ratio, so every term in the conversion came off the node. As an
-          outside check, counting every reveal output reproduces the
-          figure mempool.space published in its UTXO Set Report —
-          51,188,145 at block 892,385 — from entirely separate code.</p>
-      </div>
-
-    </div>
-
-    <div class="mlead">Part three <span>— where the numbers differ, and what
-      they miss</span></div>
-
-    <div class="mgrid">
-
-      <div class="mblock">
-        <h4>One measure, everywhere</h4>
-        <p>Every figure on this page — the total, the chart, the share on
-          each live block — is the same quantity: bytes a node stores
-          because non-monetary data exists. Whole inscription
-          transactions, every OP_RETURN output at its stored size, and the
-          chainstate entries left behind.</p>
-        <p>The live blocks are not graded or colour-coded. A block's
-          percentage and its bar are the measurement; whether it is high
-          or low is for the reader, against the chain-wide figure at the
-          top. An earlier version of this page ranked blocks against a
-          "typical" band and counted blocks that carried nothing the
-          pre-2023 relay rules would have refused. Both were judgments
-          about rules rather than measurements of storage, and both are
-          gone.</p>
-        <p>One difference remains between a live block and the total:
-          transfers. Identifying a transfer needs the tagged outpoint set
-          the historical tracker builds, which the live poller does not
-          carry, so the per-block share counts reveal transactions and
-          OP_RETURN only. It reads a little under the chain-wide rate, and
-          in the conservative direction.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>The bounds, stated</h4>
-        <p>Two figures on this page are ranges rather than points, and
-          both are published at the low end.</p>
-        <p><b>Transfers.</b> Only the provable parts are counted, which
-          undercounts a genuine transfer and refuses to overcount a sweep.
-          The whole-transaction figure is measured as an upper bound, so
-          the answer to "how much is this missing?" is a number rather
-          than a shrug.</p>
-        <p><b>Chainstate.</b> The published count excludes change and
-          excludes everything the tag reached by propagation. Counting
-          every reveal output gives the cross-check; counting everything
-          tagged gives the ceiling.</p>
-      </div>
-
-      <div class="mblock">
-        <h4>What this does not measure</h4>
-        <p><b>"Would have blocked" is softer than it sounds.</b> The
-          OP_RETURN cap was a relay default, and miners taking
-          transactions directly could always ignore it. Inscriptions were
-          never refused by Bitcoin Core at all. Neither would have been
-          impossible — both would have been harder or dearer.</p>
-        <p><b>Data can move.</b> Witness bytes are cheaper than output
-          bytes, so data blocked from one route may take another rather
-          than disappear.</p>
-        <p><b>Some carriers are not detected.</b> Protocols that hide data
-          in fake public keys are counted here as ordinary spending — and
-          their outputs sit in the chainstate too. A pipeline for them is
-          planned.</p>
-        <p><b>The total is a floor.</b> Commit transactions are missing,
-          fake-key carriers are missing, transfers and chainstate are both
-          published at their low bound, and blocks between the last full
-          scan and the live feed are not counted yet. Every gap points the
-          same way.</p>
-      </div>
-
-    </div>
-
-    <p class="mfoot">Every block since the first inscription is parsed on a
-      full node — no indexers, no third-party data, no sampling. A gap in
-      the block range is an error rather than a mode. The classifiers are
-      covered by tests that run without a node, every witness byte is
-      bound by a per-input accounting identity, and every block is checked
-      against a measure the node reports independently. Source, tests and
-      the full method:
+    <p class="mfoot"><b>Every figure is a floor.</b> Commit transactions
+      are not counted, transfers and chainstate are published at their
+      provable minimum, and data hidden in fake public keys is not yet
+      detected — every gap points the same way. Every block is parsed on
+      a full node, with no sampling and no third-party data. The history
+      of how this data got onto the chain, how each kind is read off the
+      node, and the bounds on every number are written up in full in the
+      repository:
+      <a class="deeper" href="https://github.com/bretstu/thepile/blob/main/METHODOLOGY.md">METHODOLOGY.md</a>
+      · source and tests at
       <a class="deeper" href="https://github.com/bretstu/thepile">github.com/bretstu/thepile</a>.</p>
   </section>
 </main>
@@ -1131,6 +897,15 @@ function fmtBytes(b){
   if(b >= 1e3) return (b/1e3).toFixed(1)+' KB';
   return b+' B';
 }
+// Six characters at most, for the card rows: 1.2 MB · 178 KB · 9.3 KB ·
+// 890 B. One significant digit fewer than fmtBytes, in exchange for
+// never pushing past the card's edge.
+function fmtKB(b){
+  if(b >= 1e6) return (b/1e6).toFixed(1)+' MB';
+  if(b >= 1e5) return Math.round(b/1e3)+' KB';
+  if(b >= 1e3) return (b/1e3).toFixed(1)+' KB';
+  return b+' B';
+}
 // Bar widths are a LINEAR share of the block. A floor of 1.2% keeps a
 // sliver visible for tiny values — without it a 0.01% block looks
 // identical to a pure one, which is a different claim entirely.
@@ -1202,12 +977,12 @@ function blockEl(b, isNew){
     </div>
     <div class="zmid" title="${kind.label}">
       <div class="carrier${insc ? '' : ' none'}">
-        ${ICONS[insc ? kind.icon : 'none']}<div class="typeword">INSCRIPTIONS</div>
-        <div class="typesize">${insc ? fmtBytes(insc) : '—'}</div>
+        ${ICONS[insc ? kind.icon : 'none']}<div class="typeword">INSCRIBED</div>
+        <div class="typesize">${insc ? fmtKB(insc) : '—'}</div>
       </div>
       <div class="carrier${orb ? '' : ' none'}">
         ${ICONS.opreturn}<div class="typeword">OP_RETURN</div>
-        <div class="typesize">${orb ? fmtBytes(orb) : '—'}</div>
+        <div class="typesize">${orb ? fmtKB(orb) : '—'}</div>
       </div>
     </div>
     <div>

@@ -86,7 +86,7 @@ inbound network surface — the node is never exposed.
 | `export.py` | CSVs → chart-ready JSON. |
 | `live_poller.py` | Watches the tip, classifies new blocks, writes `live.json`. |
 | `dashboard/portal.html` | Live dashboard. |
-| `dashboard/index.html` | Methodology and deep-dive charts. |
+| `dashboard/index.html` | The dashboard: headline, chart, live blocks, composition, and the accounting ledger. |
 | `test_*.py` | 154 tests, no node required. |
 
 ---
@@ -136,6 +136,11 @@ aside and rebuild.
 ---
 
 ## Methodology notes
+
+The full write-up — how each kind of non-monetary data got onto the
+chain, how it is read off a full node, and the bounds on every published
+figure — is in [METHODOLOGY.md](METHODOLOGY.md). The site itself states
+only the accounting rules; this is the long form behind them.
 
 **No sampling.** Every block in range is parsed, so every total is a
 count rather than an estimate. Sampling was supported once and was
