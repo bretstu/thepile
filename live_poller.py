@@ -275,27 +275,13 @@ def chain_bytes():
         return 0
 
 
-def mempool_snapshot():
-    """One cheap RPC — no per-transaction work. Drives portal pressure."""
-    try:
-        info = rpc("getmempoolinfo")
-        return {
-            "txs": info.get("size", 0),
-            "vbytes": info.get("bytes", 0),
-            "total_fee_btc": info.get("total_fee", 0),
-        }
-    except Exception:
-        return None
-
-
-def emit(history, tip, mempool=None):
+def emit(history, tip):
     blocks = [published(b)
               for b in sorted(history.values(), key=lambda b: -b["height"])]
     write_atomic({
         "updated_at": int(time.time()),
         "tip": tip,
         "client": CLIENT,
-        "mempool": mempool,
         "chain_bytes": chain_bytes(),
         "day": day_stats(history),
         "blocks": blocks[:WINDOW],
@@ -320,7 +306,7 @@ def main():
             print(f"  {h:,}  data_share={history[h]['data_share'] * 100:.2f}%  "
                   f"{history[h]['miner']}")
         save_history(history)
-    emit(history, tip, mempool_snapshot())
+    emit(history, tip)
     print(r2.describe())
     r2.publish(OUTFILE, HISTORY, force=True)
     history_dirty = False
@@ -352,8 +338,7 @@ def main():
         if history_dirty and save_history(history):
             history_dirty = False
         # heartbeat every cycle so the page can detect a dead poller;
-        # mempool snapshot rides along and drives the portal's agitation
-        emit(history, tip, mempool_snapshot())
+        emit(history, tip)
 
         # Publishing is throttled internally: a new block goes out at
         # once, and the intervening heartbeats are batched, because
