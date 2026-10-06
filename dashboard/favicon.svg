@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The Pile: a heap of blocks on parchment, in the site's own ink.
+       Three blocks, not aligned — a pile, not a stack. The amber one on
+       top is the non-monetary slice, same colour as the chain bar. -->
+  <rect width="64" height="64" rx="12" fill="#F5F2EA"/>
+  <g fill="#191C22">
+    <rect x="9"  y="38" width="20" height="16" rx="2"/>
+    <rect x="33" y="38" width="22" height="16" rx="2"/>
+    <rect x="20" y="20" width="22" height="16" rx="2" fill="#A8433A"/>
+  </g>
+  <rect x="30" y="8" width="11" height="10" rx="2" fill="#E09F3E"/>
+</svg>
