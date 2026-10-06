@@ -393,12 +393,16 @@
      than the first — only marked differently. */
   .acct{margin-top:14px}
   .acct dl{margin:0}
+  /* COUNTED gets a check in teal; NOT COUNTED a cross in the dim ink.
+     The short rules that used to sit here read as minus signs beside
+     the word "counted", which is the one thing a marker must not do. */
   .acct dt{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-           color:var(--text);font-weight:500;margin:14px 0 7px;
-           display:flex;align-items:center;gap:8px}
-  .acct dt::before{content:"";width:14px;height:2px;flex:0 0 14px;
-                   background:var(--teal)}
-  .acct dt.out::before{background:var(--line-2)}
+           color:var(--teal);font-weight:600;margin:16px 0 7px;
+           display:flex;align-items:center;gap:7px}
+  .acct dt::before{content:"\2713";font-size:13px;line-height:1;
+                   font-weight:700;width:13px;text-align:center}
+  .acct dt.out{color:var(--dim);font-weight:500}
+  .acct dt.out::before{content:"\2715";font-size:11px;font-weight:600}
   .acct dd{font-size:12.5px;line-height:1.75;color:var(--dim);
            margin:0 0 7px 22px;position:relative}
   .acct dd::before{content:"";position:absolute;left:-14px;top:.72em;
@@ -594,8 +598,8 @@
 
   <section id="accounting">
     <div class="sectionlead">WHAT IS COUNTED, AND WHAT IS NOT</div>
-    <div class="sectionsub">one question decides every figure below — would
-      these bytes exist if nobody were embedding data? where the answer is
+    <div class="sectionsub">one rule decides every number on this page: would
+      these bytes exist if nobody were storing data on Bitcoin? if that is
       arguable, they are left out</div>
 
     <div class="mgrid">
@@ -603,27 +607,25 @@
       <div class="mblock">
         <h4>Inscriptions</h4>
         <div class="acct">
-          <p class="head">A reveal transaction exists for one reason.
-            Nobody builds one to move money, so <b>every byte of it</b> is
-            caused by the inscription — and a node stores transactions,
-            not envelopes. The payload is 56% of a reveal; the signatures
-            and skeleton are the other 44%.</p>
+          <p class="head">Files tucked inside transactions. The transaction
+            that writes one exists only to do that, so <b>all of it</b>
+            counts — about half is the file, half is the wrapper around
+            it.</p>
           <dl>
             <dt>Counted</dt>
-            <dd>The whole reveal transaction — signature, skeleton, dust
-              output and change alike</dd>
-            <dd>On a transfer, only the inscribed output being spent and
-              the inscribed output it becomes</dd>
+            <dd>The whole transaction that writes an inscription</dd>
+            <dd>When an inscription is moved: the inscribed coin going in,
+              and the one it becomes</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>The commit transaction.</b> Every inscription needs
-              one, but it carries no envelope and nothing identifies it.
-              The largest known omission on this page</dd>
-            <dd><b>The rest of a transfer</b> — fee input, change,
-              skeleton. Real when the transaction moves an inscription,
-              not real when a wallet sweeps dust that happens to include
-              one, and nothing in the protocol tells those apart</dd>
-            <dd><b>Any OP_RETURN inside a reveal.</b> Deducted here and
-              charged below instead</dd>
+            <dd><b>The transaction before it.</b> Every inscription needs
+              a setup transaction first. It looks like a normal payment,
+              so nothing identifies it. This is the biggest thing we
+              miss</dd>
+            <dd><b>The rest of a move.</b> Fees and change. A transaction
+              moving an inscription might be doing ordinary business too,
+              and there is no way to tell</dd>
+            <dd><b>OP_RETURN inside it.</b> Counted under OP_RETURN
+              instead, so it is never counted twice</dd>
           </dl>
         </div>
       </div>
@@ -631,24 +633,19 @@
       <div class="mblock">
         <h4>OP_RETURN</h4>
         <div class="acct">
-          <p class="head">An OP_RETURN output is <b>provably
-            unspendable</b> — coins sent to one are destroyed. So none of
-            it does monetary work, at any size, however old the rule that
-            permitted it. Storage does not care which rule let the bytes
-            in.</p>
+          <p class="head">Bitcoin's built-in slot for attaching data to a
+            transaction. An OP_RETURN output <b>can never be spent</b> —
+            anything sent to one would be burned, so in practice nothing
+            is. None of it is money.</p>
           <dl>
             <dt>Counted</dt>
-            <dd>Every OP_RETURN output on the chain, at the full size a
-              node stores it: script, value field and length prefix</dd>
+            <dd>Every OP_RETURN output on the chain, at the size a node
+              stores it</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>The transaction carrying it.</b> Unlike a reveal, it is
-              usually settling a payment too — only the data-carrying
-              output is attributable</dd>
-            <dd><b>The coinbase OP_RETURN.</b> That is the SegWit
-              commitment, protocol machinery rather than carried data</dd>
-            <dd>Script-only size is also recorded in the data, since the
-              pre-2025 relay rule governed the script. Nothing on this
-              page is graded against it</dd>
+            <dd><b>The rest of the transaction.</b> It is usually moving
+              money too</dd>
+            <dd><b>The one in every coinbase.</b> That is protocol
+              bookkeeping, not data someone added</dd>
           </dl>
         </div>
       </div>
@@ -656,58 +653,42 @@
       <div class="mblock">
         <h4>Chainstate</h4>
         <div class="acct">
-          <p class="head">Every inscription rides on a real output,
-            because the numbering convention needs a coin to pin data to.
-            Below roughly a thousand satoshis that output costs more to
-            spend than it holds, so it <b>never moves</b> — and no node
-            can prune it.</p>
+          <p class="head">Every inscription sits on a tiny coin. It is worth
+            less than the fee to spend it, so it <b>never moves</b> — and
+            every node keeps it in its working memory, forever.</p>
           <dl>
             <dt>Counted</dt>
-            <dd>Reveal outputs at or below 1,000 satoshis that are still
+            <dd>Inscription coins of 1,000 satoshis or less that are still
               unspent</dd>
             <dt class="out">Not counted</dt>
-            <dd><b>Change returned to whoever made the inscription.</b>
-              That is ordinary money, and spending it later is ordinary
-              spending</dd>
-            <dd><b>Anything that inherited the tag by being passed
-              along.</b> An output descended from an inscription is not
-              itself one</dd>
-            <dd>Both wider counts are measured as a cross-check and a
-              ceiling. The published figure is the smallest of the
-              three</dd>
+            <dd><b>Change</b> sent back to whoever made the inscription.
+              That is normal money</dd>
+            <dd><b>Coins that merely descend from one.</b> Being
+              downstream of an inscription does not make a coin an
+              inscription</dd>
           </dl>
-          <p class="head note"><b>Change is excluded
-            here and counted above. That is not a contradiction</b> — the
-            two categories ask different questions of the same output.
-            <i>Was this byte written because of the inscription?</i> Yes:
-            the transaction exists for no other reason, so all of it
-            counts. <i>Is this coin an inscription burden on every node
-            forever?</i> No: it is money, and it will be spent like
-            money.</p>
+          <p class="head note">Change is counted under Inscriptions but
+            not here. That is on purpose: the inscription caused those
+            bytes to be <i>written</i>, so they count there — but the
+            coin itself is money and will be spent, so it is not a
+            permanent burden on every node.</p>
         </div>
       </div>
 
     </div>
 
     <p class="mfoot"><b>Nothing is counted twice.</b> An inscription
-      transaction is counted once — one that both reveals and moves is a
-      reveal, not both — and its serialised size already contains the
-      envelope, the outputs and any OP_RETURN it carries, so those are
-      never added again. OP_RETURN is counted only outside those
-      transactions. Chainstate cannot overlap either, because it is a
-      different database: a node genuinely stores the same output twice,
-      once in block history as a record of what happened and once in the
-      chainstate as an index of what exists now. Counting both is not
-      double counting — it is what the node holds.</p>
+      transaction is counted once. OP_RETURN is counted only outside
+      those transactions. Chainstate is a separate database — a node
+      really does store the same coin once in its block history and once
+      in its list of live coins, so counting both is counting what the
+      node holds.</p>
 
-    <p class="mfoot"><b>Every figure is a floor.</b> Commit transactions
-      are not counted, transfers and chainstate are published at their
-      provable minimum, and data hidden in fake public keys is not yet
-      detected — every gap points the same way. Every block is parsed on
-      a full node, with no sampling and no third-party data. The history
-      of how this data got onto the chain, how each kind is read off the
-      node, and the bounds on every number are written up in full in the
-      repository:
+    <p class="mfoot"><b>Every figure is a floor.</b> Setup transactions
+      are missed, moves and chainstate are counted at their minimum, and
+      data hidden in fake public keys is not detected yet. Every block is
+      read from a full node — no sampling, no third-party data. The long
+      version is in the repository:
       <a class="deeper" href="https://github.com/bretstu/thepile/blob/main/METHODOLOGY.md">METHODOLOGY.md</a>
       · source and tests at
       <a class="deeper" href="https://github.com/bretstu/thepile">github.com/bretstu/thepile</a>.</p>
