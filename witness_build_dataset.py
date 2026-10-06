@@ -16,16 +16,8 @@ every row.
                             "What is stored on Bitcoin" — images vs text
                             vs JSON — over time.
 
-  data/witness_inscription_details.csv
-                            One row per envelope with content above
-                            DETAIL_CONTENT_BYTES. Drill-down with txid.
-
 REQUIRES getblock verbosity 3 (Bitcoin Core/Knots 25.0+), which includes
 each input's prevout. Checked at startup with a clear error.
-
-Also writes data/witness_graffiti.csv: every decodable text/plain
-inscription body (JSON mints excluded — already counted in types),
-labeled human/bridge/tag. Display layers choose what to show.
 
 Usage:
     python witness_build_dataset.py 767400 962100
@@ -55,26 +47,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 from rpc import rpc, CLIENT
 from witness_classifier import classify_tx_witness
-from graffiti_classifier import inscribed_texts
 import utxo_track
 from utxo_track import UTXOTracker
 
 OUTDIR = "data"
 BLOCKS_CSV = os.path.join(OUTDIR, "witness_blocks.csv")
 TYPES_CSV = os.path.join(OUTDIR, "witness_content_types.csv")
-DETAILS_CSV = os.path.join(OUTDIR, "witness_inscription_details.csv")
-GRAFFITI_CSV = os.path.join(OUTDIR, "witness_graffiti.csv")
-
-# Graffiti archive: every decodable text/plain inscription body, labeled
-# by category. JSON bodies (BRC-20 mints) are counted in the types CSV
-# already and number in the thousands per block at their peak — storing
-# each one would bloat the archive without adding information, so they
-# are skipped HERE ONLY.
-GRAFFITI_MAX_PER_BLOCK = 50
-GRAFFITI_SKIP_CATEGORIES = {"json"}
-
-# Envelopes with at least this much body content get a detail row.
-DETAIL_CONTENT_BYTES = 10_000
 
 BAR_FULL = "\u2588"
 BAR_EMPTY = "\u2591"
@@ -100,18 +78,6 @@ TYPE_FIELDS = [
     "height", "block_time", "protocol", "content_type",
     "envelopes", "content_bytes", "envelope_bytes",
 ]
-
-GRAFFITI_FIELDS = [
-    "height", "block_time", "txid", "content_type", "category", "text",
-]
-
-DETAIL_FIELDS = [
-    "height", "block_time", "txid",
-    "protocol", "content_type", "content_bytes", "envelope_bytes",
-    "payload_bytes", "tx_vsize", "tx_weight", "tx_fee_sat",
-    "tx_envelope_count",
-]
-
 
 def check_verbosity_3():
     """Fail fast with a useful message if the node lacks verbosity 3."""
@@ -158,8 +124,6 @@ def analyze_block(height, block_hash=None, block=None, tracker=None):
     largest = 0
     block_vsize = 0
     types = {}
-    detail_rows = []
-    graffiti_rows = []
     envelope_txids = set()
 
     for tx in txs:
@@ -167,17 +131,6 @@ def analyze_block(height, block_hash=None, block=None, tracker=None):
         c = classify_tx_witness(tx)
         if c is None:
             continue
-
-        if c["envelope_count"] and len(graffiti_rows) < GRAFFITI_MAX_PER_BLOCK:
-            for ctype, cat, text in inscribed_texts(tx):
-                if cat in GRAFFITI_SKIP_CATEGORIES:
-                    continue
-                graffiti_rows.append({
-                    "height": height, "block_time": t, "txid": c["txid"],
-                    "content_type": ctype, "category": cat, "text": text,
-                })
-                if len(graffiti_rows) >= GRAFFITI_MAX_PER_BLOCK:
-                    break
 
         for k in ("witness_bytes", "envelope_bytes", "content_bytes",
                   "payload_bytes", "overhead_bytes", "residual_bytes",
@@ -201,21 +154,6 @@ def analyze_block(height, block_hash=None, block=None, tracker=None):
             ty["content"] += env["content_bytes"]
             ty["envelope"] += env["envelope_bytes"]
 
-            if env["content_bytes"] >= DETAIL_CONTENT_BYTES:
-                detail_rows.append({
-                    "height": height,
-                    "block_time": t,
-                    "txid": c["txid"],
-                    "protocol": env["protocol"],
-                    "content_type": env["content_type"],
-                    "content_bytes": env["content_bytes"],
-                    "envelope_bytes": env["envelope_bytes"],
-                    "payload_bytes": env["payload_bytes"],
-                    "tx_vsize": c["vsize"],
-                    "tx_weight": c["weight"],
-                    "tx_fee_sat": c["fee_sat"],
-                    "tx_envelope_count": c["envelope_count"],
-                })
 
     size = block.get("size", 0)
     stripped = block.get("strippedsize", 0)
@@ -272,7 +210,7 @@ def analyze_block(height, block_hash=None, block=None, tracker=None):
         for (proto, ctype), v in sorted(types.items())
     ]
 
-    return block_row, type_rows, detail_rows, graffiti_rows
+    return block_row, type_rows
 
 
 def done_heights():
@@ -404,14 +342,11 @@ def build(start, end, workers=5):
 
     bf, bw = _writer(BLOCKS_CSV, BLOCK_FIELDS)
     tf, tw = _writer(TYPES_CSV, TYPE_FIELDS)
-    df, dw = _writer(DETAILS_CSV, DETAIL_FIELDS)
-    gf, gw = _writer(GRAFFITI_CSV, GRAFFITI_FIELDS)
 
     t0 = time.time()
     last_done = None
     env_running = 0
     content_running = 0
-    detail_total = 0
 
     # Prefetch pipeline: worker threads fetch upcoming blocks over RPC
     # while THIS thread classifies and writes strictly in height order.
@@ -433,13 +368,10 @@ def build(start, end, workers=5):
             height, bhash, block = futures.popleft().result()
             top_up()
             i += 1
-            brow, trows, drows, grows = analyze_block(height, bhash, block,
-                                                     tracker)
+            brow, trows = analyze_block(height, bhash, block, tracker)
             bw.writerow(brow)
             tw.writerows(trows)
-            dw.writerows(drows)
-            gw.writerows(grows)
-            for f in (bf, tf, df, gf):
+            for f in (bf, tf):
                 f.flush()
             last_done = height
 
@@ -452,7 +384,6 @@ def build(start, end, workers=5):
 
             env_running += brow["envelope_bytes"]
             content_running += brow["content_bytes"]
-            detail_total += len(drows)
             rate = i / (time.time() - t0)
 
             # Big-content blocks get a permanent line above the bar.
@@ -471,7 +402,7 @@ def build(start, end, workers=5):
         print("\n\nInterrupted. Progress saved; rerun to resume.")
     finally:
         ex.shutdown(wait=False, cancel_futures=True)
-        for f in (bf, tf, df, gf):
+        for f in (bf, tf):
             f.close()
         if tracker is not None:
             if last_done is not None:
@@ -483,7 +414,6 @@ def build(start, end, workers=5):
             tracker.close()
 
     print()
-    print(f"\nWrote {detail_total:,} detail rows to {DETAILS_CSV}")
     print(f"Totals: {env_running / 1e6:,.1f}MB envelope bytes, "
           f"{content_running / 1e6:,.1f}MB content bytes")
     print(f"Done in {(time.time() - t0) / 60:.1f} min")

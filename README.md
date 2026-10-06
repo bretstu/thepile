@@ -62,14 +62,15 @@ could never overlap before, and now they can.
 One direction, no loops:
 
 ```
-Bitcoin node ──> builders ──> data/*.csv ──> export.py ──> dashboard/data/*.json ──> static page
-                                                                    ▲
-                             live_poller.py ─────────────────────────┘
+Bitcoin node ──> builders ──> data/*.csv ──> export.py ──> dashboard/data/cumulative.json ──> static page
+                                                                                 ▲
+                             live_poller.py ──> dashboard/data/live.json ────────┘
 ```
 
-The page reads only JSON. The JSON files are a versioned contract, so
-either side can be rewritten independently. All aggregation happens in
-Python; the browser does no math beyond drawing.
+The page reads three JSON files and nothing else: `cumulative.json`
+from the export, `live.json` and `live_history.json` from the poller.
+All aggregation happens in Python; the browser does no math beyond
+drawing.
 
 The dashboard is static files. There is no server, no database, and no
 inbound network surface — the node is never exposed.
@@ -79,15 +80,17 @@ inbound network surface — the node is never exposed.
 | Path | Purpose |
 |---|---|
 | `witness_classifier.py` | Envelope detection and witness byte accounting. Pure functions. |
-| `opreturn_classifier.py` | OP_RETURN parsing and conservative protocol tagging. Pure functions. |
-| `graffiti_classifier.py` | Shared text classification (human / bridge / json / tag). |
-| `*_build_dataset.py` | Walk the chain, write CSVs. Resumable. |
-| `*_explore.py` | Query the CSVs from the command line. `audit` first. |
-| `export.py` | CSVs → chart-ready JSON. |
-| `live_poller.py` | Watches the tip, classifies new blocks, writes `live.json`. |
-| `dashboard/portal.html` | Live dashboard. |
+| `opreturn_classifier.py` | OP_RETURN output sizing. Pure functions. |
+| `utxo_track.py` | The chainstate tracker: tagged outpoints, provable floors, transfer accounting. |
+| `*_build_dataset.py` | Walk the chain, write the CSVs. Resumable; refuse to append across a schema change. |
+| `export.py` | CSVs → `cumulative.json`. |
+| `live_poller.py` | Watches the tip, classifies new blocks, publishes `live.json` to R2. |
+| `check.py` | Full-dataset integrity and version-consistency audit. No node needed. |
+| `verify_utxo.py` | Audits the tracker against the live node. |
+| `verify_block.py` | One block, re-derived and cross-checked against the CSVs. |
+| `check_theme.py` | Structural guard for the page's two-theme stylesheet. |
 | `dashboard/index.html` | The dashboard: headline, chart, live blocks, composition, and the accounting ledger. |
-| `test_*.py` | 154 tests, no node required. |
+| `test_*.py` | Tests for the classifiers and the tracker. No node required. |
 
 ---
 
@@ -101,20 +104,24 @@ cp .env.example .env          # then fill in your node's RPC details
 python -m venv venv && source venv/bin/activate     # Windows: venv\Scripts\activate
 ```
 
-Verify the classifiers before trusting any number:
+Verify the classifiers and the tracker before trusting any number:
 
 ```bash
-python test_witness_classifier.py      # 64 tests
-python test_opreturn_classifier.py     # 62 tests
-python test_graffiti_classifier.py     # 28 tests
+python test_witness_classifier.py
+python test_opreturn_classifier.py
+python test_utxo_track.py
 ```
 
-Build the datasets:
+Build the datasets, check them, export:
 
 ```bash
-python witness_build_dataset.py 767400 962000
-python opreturn_build_dataset.py 767400 962000
-python witness_explore.py audit        # ALWAYS check coverage first
+python opreturn_build_dataset.py 1 <tip-10>          # from genesis: OP_RETURN
+                                                     # history and the chain-size
+                                                     # denominator
+python witness_build_dataset.py 767400 <tip-10>      # from just before the
+                                                     # first inscription
+python check.py                                      # integrity + version audit
+python verify_utxo.py --node                         # tracker vs the live node
 python export.py
 ```
 
@@ -125,13 +132,15 @@ cd dashboard && python -m http.server 8000
 ```
 
 Arguments are `start end workers`. Every block in the range is scanned;
-`workers 3` overlaps RPC fetches with classification. Start at or below
-767,400 so the UTXO tracker begins from a genuinely empty set — it
-refuses to run otherwise rather than inherit an unknown state.
+`workers` overlaps RPC fetches with classification (3 is safe on 8-10 GB
+of RAM for the witness scan, which holds decoded verbosity-3 blocks).
+Start the witness scan at or below 767,400 so the UTXO tracker begins
+from a genuinely empty set — it refuses to run otherwise rather than
+inherit an unknown state.
 
-The witness builder refuses to append to a CSV written with a different
-set of columns. If you are upgrading across a schema change, move `data/`
-aside and rebuild.
+Both builders refuse to append to a CSV written with a different set of
+columns. If you are upgrading across a schema change, move `data/` aside
+and rebuild.
 
 ---
 
@@ -170,9 +179,6 @@ Issues and pull requests welcome. Things that would help most:
   totals. Independent reproduction is the point.
 - **The fake-key pipeline.** Bare multisig and fake-P2WSH data storage —
   the only category that occupies the UTXO set permanently.
-- **Protocol identification.** `opreturn_explore.py unknown` ranks
-  unidentified payload prefixes by volume. Confident identifications can
-  be promoted into `KNOWN_PAYLOAD_PREFIXES`.
 - **Residual analysis.** Anything currently unattributed that should be.
 
 Please keep classifiers pure (no network, no file I/O) and add tests for
@@ -181,10 +187,8 @@ the numbers.
 
 ## Security
 
-Do not commit `.env`. The `data/` directory is gitignored: it is large,
-regenerable, and the graffiti tables contain arbitrary text pulled off
-the blockchain — republishing that is a separate decision from publishing
-code.
+Do not commit `.env`. The `data/` directory is gitignored: it is large
+and regenerable from the builders.
 
 ## License
 

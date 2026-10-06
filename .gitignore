@@ -3,11 +3,8 @@
 *.key
 *.pem
 
-# ---- data: large, regenerable, and NOT yours to republish ----
-# data/ reaches 2-6 GB and the graffiti CSVs contain arbitrary text
-# pulled off the blockchain. Publishing that text under your name is a
-# different act from publishing code that measures it. Regenerate
-# locally with the builders instead.
+# ---- data: large and regenerable ----
+# data/ reaches several GB. Regenerate locally with the builders.
 # NOTE THE LEADING SLASH. Without it, "data/" matches a directory named
 # data at ANY depth — including dashboard/data/ — which silently hides
 # the exported JSON the site needs. Anchor it to the repo root.
@@ -44,8 +41,7 @@ desktop.ini
 *.docx
 ~$*
 
+# ---- local notes and .env backups (nano's .env.save etc) ----
 Help/
-.env.*
-!.env.example
 .env.*
 !.env.example

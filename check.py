@@ -17,8 +17,8 @@ What it checks
      - witness:  envelope <= content <= block_size, and the accounting
                  identity envelope+overhead+residual == witness_bytes
      - opreturn: or_stored_bytes >= or_bytes (stored includes framing)
-     - utxo:     reveal_dust_* <= reveal_* <= insc_*  (subset ladders)
-                 deduction columns <= the size they are deducted from
+   (The UTXO tracker's own invariants are checked by verify_utxo.py,
+    which also audits against the live node.)
 5. "Schema seam" detection: a NEW column that is zero for a run of early
     rows and then non-zero later is the signature of a mid-dataset
     version change. Flags the first height where each such column wakes up.
@@ -220,34 +220,6 @@ else:
         if contradict:
             err(f"opreturn: {contradict} blocks have OP_RETURN outputs but "
                 f"zero stored bytes — old-version rows mixed in. Rebuild.")
-
-# --------------------------------------------------------------------- utxo
-ub, uh = load("utxo_blocks.csv")
-if ub is None:
-    note("utxo_blocks.csv not found — the tracker may write to the DB only. "
-         "Skipping per-row UTXO checks (verify_utxo.py --node covers these).")
-else:
-    need = ["height", "insc_added", "reveal_added", "reveal_dust_added",
-            "reveal_tx_bytes", "reveal_opreturn_bytes",
-            "transfer_tx_bytes", "transfer_opreturn_bytes"]
-    if require_cols(uh, need, "utxo_blocks.csv"):
-        check_contiguous(ub, "utxo_blocks.csv")
-        ladderbad = dedbad = 0
-        for r in ub:
-            ia = as_int(r["insc_added"]); ra = as_int(r["reveal_added"])
-            da = as_int(r["reveal_dust_added"])
-            if None not in (ia, ra, da) and not (da <= ra <= ia):
-                ladderbad += 1
-            rt = as_int(r["reveal_tx_bytes"]); ro = as_int(r["reveal_opreturn_bytes"])
-            if None not in (rt, ro) and ro > rt:
-                dedbad += 1
-        if ladderbad:
-            err(f"utxo: subset ladder reveal_dust<=reveal<=insc FAILS on "
-                f"{ladderbad} rows — mixed versions.")
-        if dedbad:
-            err(f"utxo: reveal_opreturn_bytes > reveal_tx_bytes on {dedbad} "
-                f"rows — a deduction bigger than the thing it's deducted "
-                f"from is impossible under one version.")
 
 # ------------------------------------------------------------- cross-file
 if wb is not None and ob is not None and wh and oh:

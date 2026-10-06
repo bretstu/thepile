@@ -71,32 +71,6 @@ def read_csv(name, int_cols):
     return rows
 
 
-def read_first(names, int_cols):
-    """Try several filenames (pre/post rename compatibility)."""
-    for n in names:
-        rows = read_csv(n, int_cols)
-        if rows:
-            return rows, n
-    return [], None
-
-
-# Bootstrap cost is iters x n. A sampled dataset (~2k blocks) can afford
-# 2000 iterations; a 200k-block dataset cannot — that is a billion
-# operations in pure Python. Cap total work and scale iterations down,
-# with a floor that still gives a usable interval.
-BOOTSTRAP_MAX_OPS = 8_000_000
-
-BOOTSTRAP_MIN_ITERS = 300
-
-# Envelopes are OP_FALSE OP_IF ... OP_ENDIF — an unexecutable branch.
-# Nothing inside is ever evaluated by the script interpreter, so an
-# envelope has no monetary function; carrying data is all it can do.
-# Every envelope therefore counts as non-monetary regardless of which
-# protocol wrote it. The `ord` split below exists ONLY so the figure is
-# comparable to trackers that count Ordinals alone — it is not a
-# correctness filter, and using it alone understates the total.
-ORD_PROTOCOLS = {"ord"}
-
 def chain_size(opreturn_rows):
     """Whole-chain serialized byte total and how far it reaches.
 
@@ -208,11 +182,8 @@ def main():
 
     wb = read_csv("witness_blocks.csv", W_INT)
     check_contiguous(wb, "witness_blocks.csv")
-    # opreturn_blocks.csv is the current name; blocks.csv is the pre-rename
-    # name, still read so an older dataset exports without a rebuild.
-    ob, ob_src = read_first(["opreturn_blocks.csv", "blocks.csv"], O_INT)
-    ct, ct_src = read_first(
-        ["witness_content_types.csv", "content_types.csv"], T_INT)
+    ob = read_csv("opreturn_blocks.csv", O_INT)
+    ct = read_csv("witness_content_types.csv", T_INT)
 
     if not wb and not ob:
         raise SystemExit("No datasets found in data/. Run the builders first.")
@@ -233,7 +204,7 @@ def main():
     if ob:
         ob.sort(key=lambda r: r["height"])
         datasets["opreturn"] = {
-            "source": ob_src,
+            "source": "opreturn_blocks.csv",
             "blocks": len(ob),
 
             "height_range": [ob[0]["height"], ob[-1]["height"]],
@@ -255,33 +226,6 @@ def main():
                         "size, plus the chainstate entries inscriptions "
                         "leave behind",
             }}
-    write("meta.json", {}, meta)
-
-    # ---- block tape: one entry per witness block -------------------------
-    # Per-block non-monetary share on the SAME basis the live poller
-    # uses: reveal transactions (less any OP_RETURN inside them) plus
-    # every OP_RETURN output at stored size. Transfers are left out here
-    # too, so a historical block and a live block are the same
-    # quantity. The headline adds the transfer floor; this does not, and
-    # the methodology says so.
-    if wb:
-        o_by_h = {r["height"]: r for r in ob} if ob else {}
-        tape = []
-        for r in wb:
-            bs = r["block_size"]
-            if not bs:
-                tape.append([r["height"], 0, r["block_time"]])
-                continue
-            o = o_by_h.get(r["height"])
-            or_stored = ((o.get("or_stored_bytes") or o.get("or_bytes", 0))
-                         if o else 0)
-            nm = (r.get("reveal_tx_bytes", 0)
-                  - r.get("reveal_opreturn_bytes", 0)
-                  + or_stored)
-            tape.append([r["height"], round(nm / bs, 4), r["block_time"]])
-        write("blocktape.json",
-              {"columns": ["height", "nonmonetary_share", "block_time"],
-               "rows": tape}, meta)
 
     # ---- monthly witness aggregates --------------------------------------
     w_monthly = defaultdict(lambda: defaultdict(int))
@@ -299,33 +243,6 @@ def main():
             if k in r:
                 m[k] += r[k]
 
-    # Split envelope/content bytes by ord vs other protocols, per month.
-    ord_monthly = defaultdict(lambda: defaultdict(int))
-    for r in ct:
-        m = ord_monthly[month_key(r["block_time"])]
-        bucket = "ord" if r["protocol"] in ORD_PROTOCOLS else "other"
-        m[f"{bucket}_content"] += r["content_bytes"]
-        m[f"{bucket}_envelope"] += r["envelope_bytes"]
-
-    if wb:
-
-        months = sorted(w_monthly)
-        write("witness_monthly.json", {
-            "months": months,
-            "envelope_share_pct": [
-                round(w_monthly[m]["envelope_bytes"]
-                      / w_monthly[m]["block_size"] * 100, 3)
-                if w_monthly[m]["block_size"] else 0 for m in months],
-            "content_mb_sampled": [
-                round(w_monthly[m]["content_bytes"] / 1e6, 3) for m in months],
-            "envelope_mb_est": [
-                round(w_monthly[m]["envelope_bytes"] / 1e6, 1)
-                for m in months],
-            "envelopes_sampled": [
-                w_monthly[m]["envelope_count"] for m in months],
-            "estimated": False,
-        }, meta)
-
     # ---- monthly OP_RETURN aggregates ------------------------------------
     o_monthly = defaultdict(lambda: defaultdict(int))
     for r in ob:
@@ -336,35 +253,11 @@ def main():
                   "over_by_size_txs", "over_by_count_txs"):
             m[k] += r[k]
 
-    if ob:
-
-        months = sorted(o_monthly)
-        write("opreturn_monthly.json", {
-            "months": months,
-            "or_kb_est": [
-                round(o_monthly[m]["or_bytes"] / 1e3, 1)
-                for m in months],
-            "excess_kb_est": [
-                round(o_monthly[m]["excess_bytes"] / 1e3, 2)
-                for m in months],
-            "nonstandard_txs_sampled": [
-                o_monthly[m]["nonstandard_txs"] for m in months],
-            "estimated": False,
-        }, meta)
-
     # ---- the cumulative chart -------------------------------------------
-    # Estimated chain totals per month, then cumulative.
-    #
-    # PRIMARY measure is CONTENT bytes — the payload itself, the most
-    # conservative reading of "how much data was stored". ENVELOPE bytes
-    # (payload plus the protocol fields and opcodes wrapping it) ship
-    # alongside so the dashboard can toggle; both are non-monetary by
-    # construction. Signatures, control blocks and legitimate spending
-    # scripts live in overhead/residual and are excluded entirely.
+    # Chain totals per month, then cumulative. Every block in range was
+    # parsed, so these are counts, not estimates.
     def utxo_series(months, monthly):
         """Monthly UTXO series, or None if this dataset predates the tracker.
-
-        Two kinds of quantity, and they are not interchangeable:
 
         Two kinds of quantity, and they are not interchangeable:
 
@@ -513,27 +406,11 @@ def main():
             f["bytes"] += r["envelope_bytes"]
             f["content"] += r["content_bytes"]
 
-        total_n = sum(v["n"] for v in fams.values()) or 1
-        total_b = sum(v["bytes"] for v in fams.values()) or 1
         ranked = sorted(fams.items(), key=lambda kv: -kv[1]["bytes"])
-        write("families.json", {
-            "source": ct_src,
-            "families": [k for k, _ in ranked],
-            "byte_share_pct": [round(v["bytes"] / total_b * 100, 2)
-                               for _, v in ranked],
-            "count_share_pct": [round(v["n"] / total_n * 100, 2)
-                                for _, v in ranked],
-            "avg_bytes": [round(v["bytes"] / v["n"]) if v["n"] else 0
-                          for _, v in ranked],
-            "content_mb": [round(v["content"] / 1e6, 2) for _, v in ranked],
-            "envelope_mb": [round(v["bytes"] / 1e6, 2) for _, v in ranked],
-            "envelopes": [v["n"] for _, v in ranked],
-        }, meta)
 
-        # families.json is not shipped — cumulative.json is the only export
-        # the site reads — so the breakdown rides along inside it. Absolute
-        # MB rather than percentages, so the page can reconcile it against
-        # its own headline instead of trusting a share computed elsewhere.
+        # The breakdown rides inside cumulative.json — the only export the
+        # site reads. Absolute MB rather than percentages, so the page can
+        # reconcile it against its own headline.
         fam_payload = {
             "names": [k for k, _ in ranked],
             "envelope_mb": [round(v["bytes"] / 1e6, 2) for _, v in ranked],
@@ -596,10 +473,7 @@ def main():
 
     all_months = sorted(set(w_monthly) | set(o_monthly))
     if all_months:
-        series = {k: [] for k in (
-            "witness_content_mb", "witness_envelope_mb",
-            "witness_content_ord_mb", "witness_content_other_mb",
-            "opreturn_mb")}
+        series = {k: [] for k in ("witness_envelope_mb", "opreturn_mb")}
         if has_tx:
             # THE PUBLISHED INSCRIPTION MEASURE.
             #
@@ -639,20 +513,14 @@ def main():
             # a figure anyone with a node can reproduce independently.
         run = defaultdict(float)
         for m in all_months:
-            run["wc"] += w_monthly[m]["content_bytes"] / 1e6
             run["we"] += w_monthly[m]["envelope_bytes"] / 1e6
-            run["wo"] += ord_monthly[m]["ord_content"] / 1e6
-            run["wx"] += ord_monthly[m]["other_content"] / 1e6
             # Stored bytes, not script bytes: the pile is a storage
             # measure and a node keeps each output's value field and
             # length prefix too. Older datasets have only the script
             # figure, which reads ~9 bytes an output low.
             run["or"] += (o_monthly[m].get("or_stored_bytes")
                           or o_monthly[m].get("or_bytes", 0)) / 1e6
-            series["witness_content_mb"].append(round(run["wc"], 1))
             series["witness_envelope_mb"].append(round(run["we"], 1))
-            series["witness_content_ord_mb"].append(round(run["wo"], 1))
-            series["witness_content_other_mb"].append(round(run["wx"], 1))
             series["opreturn_mb"].append(round(run["or"], 1))
             if has_tx:
                 run["rv"] += (w_monthly[m]["reveal_tx_bytes"]
@@ -673,29 +541,12 @@ def main():
                     round(run["rv"] + run["tc"], 1))
 
 
-        # Reconcile: the ord/other split comes from witness_content_types.csv
-        # while the totals come from witness_blocks.csv. Both are summed from
-        # the same envelopes during the build, so they must agree. A gap means
-        # one file is stale or was built from a different range.
-        split_total = sum(ord_monthly[m]["ord_content"]
-                          + ord_monthly[m]["other_content"] for m in all_months)
-        block_total = sum(w_monthly[m]["content_bytes"] for m in all_months)
-        if block_total:
-            drift = abs(split_total - block_total) / block_total
-            if drift > 0.01:
-                print(f"  WARNING: ord/other split covers "
-                      f"{split_total / block_total * 100:.1f}% of content bytes "
-                      f"in witness_blocks.csv. The two files disagree — "
-                      f"rebuild both from the same range before trusting "
-                      f"the ORD ONLY view.")
-
-        # AND the same check on ENVELOPE bytes, which matters more now.
+        # Reconcile ENVELOPE bytes between the two witness files.
         # The page draws the wrapper as reveal_tx_bytes minus the families
         # total, so any disagreement between the two files does not show
         # up as a missing slice — it is silently absorbed into
         # "signatures & skeleton", the largest object on that chart.
-        # Tighter tolerance than the content check for exactly that
-        # reason: this one has somewhere to hide.
+        # Tight tolerance: this one has somewhere to hide.
         fam_env = sum(r["envelope_bytes"] for r in ct)
         blk_env = sum(w_monthly[m]["envelope_bytes"] for m in all_months)
         if blk_env and ct:
@@ -712,12 +563,6 @@ def main():
         write("cumulative.json", {
             "months": all_months,
             **series,
-            # Kept, and always false: every block in range was parsed.
-            # The page reads this to decide between "exact" and "estimated"
-            # wording, and an absent key would silently become the wrong
-            # one.
-            "estimated": False,
-            "ci95": {},
             "coverage": {
                 "witness": datasets.get("witness", {}).get("date_range"),
                 "opreturn": datasets.get("opreturn", {}).get("date_range"),

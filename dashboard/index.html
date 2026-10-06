@@ -719,11 +719,6 @@ let firstLoad = true;
 // lurches when data lands.
 // "1 days" is the kind of small wrongness that makes a reader doubt the
 // big numbers too. Under a day gets its own phrasing rather than "0 days".
-function plainDays(d){
-  const n = Math.floor(d);
-  if(n <= 0) return 'less than a day';
-  return n === 1 ? '1 day' : `${n.toLocaleString()} days`;
-}
 
 let odoBase = 0, odoGate = Infinity, odoShown = 0, odoTarget = 0, odoSeeded = false;
 // Shown on hover over the headline rather than printed under it.
@@ -764,9 +759,8 @@ async function seedOdometer(){
     // tooltip and in the methodology — but a headline number does not
     // need a permanent footnote restating that it is real.
     $('odosub').textContent = '';
-    ODO_PROVENANCE = CUM.estimated === false
-      ? `every block parsed through ${odoGate.toLocaleString()}, live blocks counted since`
-      : `estimated through block ${odoGate.toLocaleString()}, counted exactly since`;
+    ODO_PROVENANCE =
+      `every block parsed through ${odoGate.toLocaleString()}, live blocks counted since`;
   }catch(e){
     odoBase = 0; odoGate = 0; odoSeeded = false;
     $('odosub').textContent =
