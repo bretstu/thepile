@@ -1,12 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- The Pile: a heap of blocks on parchment, in the site's own ink.
-       Three blocks, not aligned — a pile, not a stack. The amber one on
-       top is the non-monetary slice, same colour as the chain bar. -->
+  <!-- The Pile: a heap, not a pyramid. Small squares (bytes) dumped into
+       a mound that slumps to the right, the way a pile actually sits.
+       Ink, with brick for inscriptions and one amber chip near the top
+       for the non-monetary slice, as on the chain bar. -->
   <rect width="64" height="64" rx="12" fill="#F5F2EA"/>
   <g fill="#191C22">
-    <rect x="9"  y="38" width="20" height="16" rx="2"/>
-    <rect x="33" y="38" width="22" height="16" rx="2"/>
-    <rect x="20" y="20" width="22" height="16" rx="2" fill="#A8433A"/>
+    <!-- ground row: wide, uneven ends -->
+    <rect x="5"  y="48" width="8" height="8" rx="1.5"/>
+    <rect x="15" y="48" width="8" height="8" rx="1.5" fill="#A8433A"/>
+    <rect x="25" y="48" width="8" height="8" rx="1.5"/>
+    <rect x="35" y="48" width="8" height="8" rx="1.5"/>
+    <rect x="45" y="48" width="8" height="8" rx="1.5" fill="#A8433A"/>
+    <rect x="55" y="50" width="6" height="6" rx="1.5"/>
+    <!-- second: steep on the left, long on the right -->
+    <rect x="9"  y="38" width="8" height="8" rx="1.5"/>
+    <rect x="19" y="38" width="8" height="8" rx="1.5"/>
+    <rect x="29" y="38" width="8" height="8" rx="1.5" fill="#A8433A"/>
+    <rect x="39" y="38" width="8" height="8" rx="1.5"/>
+    <rect x="49" y="40" width="7" height="7" rx="1.5"/>
+    <!-- third: the crest sits left of centre -->
+    <rect x="13" y="28" width="8" height="8" rx="1.5" fill="#A8433A"/>
+    <rect x="23" y="28" width="8" height="8" rx="1.5"/>
+    <rect x="33" y="29" width="8" height="8" rx="1.5"/>
+    <rect x="43" y="31" width="7" height="7" rx="1.5"/>
+    <!-- crest -->
+    <rect x="18" y="18" width="8" height="8" rx="1.5"/>
+    <rect x="28" y="19" width="8" height="8" rx="1.5" fill="#A8433A"/>
+    <rect x="22" y="8"  width="8" height="8" rx="1.5" fill="#E09F3E"/>
   </g>
-  <rect x="30" y="8" width="11" height="10" rx="2" fill="#E09F3E"/>
 </svg>
