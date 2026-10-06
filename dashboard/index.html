@@ -184,15 +184,10 @@
   #row::-webkit-scrollbar{display:none}
   #row{cursor:grab}
   #row.dragging{cursor:grabbing}
-  #row.dragging .block{animation-play-state:paused}
-
-  /* One phase for the whole row: the chain breathes as a single object.
-     Per-block phases made the row look misaligned rather than alive, and
-     broke the link lines between neighbours. */
-  @keyframes bob{
-    0%,100%{transform:translateY(0)}
-    50%{transform:translateY(-4px)}
-  }
+  /* No ambient motion. The row used to float on a slow bob so it would
+     feel alive; with the tier colours gone it read as drift. The only
+     animation left is the one-shot settle when a NEW block lands — an
+     event, not a mood. */
 
   /* ---- THE BLOCK SOLID --------------------------------------------------
      Isometric: the front face IS the box; ::before is the top face and
@@ -209,15 +204,16 @@
      reading as a panel. */
   /* ONE LOOK FOR EVERY BLOCK. The cards used to take a colour from a
      tier class — pure / light / typical / heavy — and the tier was a
-     judgment about what "typical" meant. That is gone: every card is the
-     same ink, and the percentage and its bar are the whole message. --c
-     is the number's colour and nothing else varies by block. */
+     judgment about what "typical" meant. That is gone. The percentage is
+     plain ink like every other number on the page; the bar is amber,
+     because amber already means "non-monetary" here (the chain bar at
+     the top uses it for exactly this quantity); the edge is neutral. --c
+     is the bar's colour and nothing else varies by block. */
   .block{--d:11px;
-         --c:var(--t-brick); --tb:var(--edge-brick); --tintbg:var(--tint-none);
+         --c:var(--amber); --tb:var(--line-2); --tintbg:var(--tint-none);
          position:relative;flex:0 0 var(--bw);width:var(--bw);
          aspect-ratio:1;border-radius:3px;
          margin-right:var(--d);
-         animation:bob 7s ease-in-out infinite;
          background:linear-gradient(158deg,var(--card-1) 0%,
                      var(--card-2) 58%,var(--card-3) 100%);
          box-shadow:0 1px 2px var(--lift-1),0 8px 20px var(--lift-2);
@@ -236,8 +232,7 @@
          transform:skewY(-45deg);transform-origin:top left}
 
   /* These are links in a chain, so draw the link. Spans the gutter to the
-     previous block's right face; alignment holds because every block now
-     bobs on the same phase. */
+     previous block's right face. */
   .lnk{position:absolute;top:50%;right:calc(100% + 1px);width:30px;height:2px;
        margin-top:-1px;pointer-events:none;
        background:linear-gradient(90deg,transparent 0%,
@@ -247,19 +242,17 @@
        background:var(--joint)}
 
   /* Identity line. Height stays parchment on purpose: on this card,
-     colour means "how much non-monetary data" and nothing else, so the
-     block number must not compete for it. The dot carries the tier. */
+     the block number is plain ink and does not compete with the
+     percentage below it. */
   .btop{display:flex;align-items:center;justify-content:space-between;gap:6px}
   .h{font-size:clamp(13px,1.02vw,17px);font-weight:500;color:var(--text);
      letter-spacing:.02em}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--c);
-       box-shadow:0 0 7px var(--c);flex:0 0 auto}
   .meta{font-size:clamp(9.5px,.78vw,12px);color:var(--dim);line-height:1.5;
         margin-top:3px}
 
   /* What it carried: icon, the word, the size. An icon alone is a riddle —
      the three-line glyph reads as a hamburger menu, not "text". */
-  .zmid{display:flex;align-items:center;gap:6px;color:var(--c)}
+  .zmid{display:flex;align-items:center;gap:6px;color:var(--dim)}
   .ico{width:clamp(13px,1.05vw,17px);height:clamp(13px,1.05vw,17px);
        opacity:.95;flex:0 0 auto}
   .typeword{font-size:clamp(8.5px,.68vw,10.5px);color:var(--dim);
@@ -268,7 +261,7 @@
             color:var(--text);font-weight:500;font-family:var(--mono);
             letter-spacing:.01em;white-space:nowrap}
 
-  .share{font-family:var(--disp);font-weight:800;line-height:1;color:var(--c);
+  .share{font-family:var(--disp);font-weight:800;line-height:1;color:var(--text);
          font-size:clamp(27px,2.2vw,38px)}
   .share span{font-size:clamp(11px,.9vw,14px);font-family:var(--mono);
               font-weight:400;letter-spacing:.02em}
@@ -1192,7 +1185,6 @@ function blockEl(b, isNew){
     <div>
       <div class="btop">
         <div class="h">${b.height.toLocaleString()}</div>
-        <i class="dot"></i>
       </div>
       <div class="meta">${fmtBytes(b.block_size)} · ${b.tx_count.toLocaleString()} txs</div>
     </div>
