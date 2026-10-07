@@ -105,6 +105,7 @@ inbound network surface — the node is never exposed.
 | `verify_utxo.py` | Audits the tracker against the live node. |
 | `verify_block.py` | One block, re-derived and cross-checked against the CSVs. |
 | `check_theme.py` | Structural guard for the page's two-theme stylesheet. |
+| `views.py` | Daily page views by people, from Cloudflare Web Analytics. Setup notes at the top of the file. |
 | `dashboard/index.html` | The dashboard: headline, chart, live blocks, composition, and the accounting ledger. |
 | `test_*.py` | Tests for the classifiers and the tracker. No node required. |
 
