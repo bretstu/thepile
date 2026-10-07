@@ -779,13 +779,20 @@ async function seedOdometer(){
 // The seam holds as long as export.py is re-run at least monthly; if the
 // history is too shallow to reach the gate, say so instead of undercounting.
 let histWarned = false;
-async function setOdoTarget(){
-  let hist = [];
+// live_history.json is ~1,000 rows, a few hundred KB. It changes only when
+// a block arrives, so it is fetched once at load and then only when the
+// tip moves — not on every 5-second poll.
+let histTip = 0;
+async function fetchHistory(){
   try{
     const r = await fetch(LIVE_BASE + '/data/live_history.json?t='+Date.now());
-    if(r.ok) hist = await r.json();
+    if(r.ok) return await r.json();
   }catch(e){}
-  if(!hist.length) return;
+  return [];
+}
+async function setOdoTarget(hist){
+  if(!hist) hist = await fetchHistory();
+  if(!hist.length){ histTip = 0; return; }   // try again on the next poll
 
   // The gap between the last full scan and the live window is structural:
   // the builders run weekly, the feed runs continuously. Report it as
@@ -822,6 +829,46 @@ async function setOdoTarget(){
       setTimeout(()=>$('odometer').classList.remove('lurch'), 1600);
     }
   }
+  renderChainBar();
+}
+
+// chain context bar: the pile at true scale against the whole chain.
+// Same rounding everywhere — 44.3 GB in the legend beside 44.275 GB in
+// the odometer reads as two different numbers to anyone not looking
+// closely, so both now come off the same value at the same precision.
+//
+// DENOMINATOR: prefer the from-node serialized total (CUM.chain), which
+// is summed from block_size across the genesis OP_RETURN scan — same
+// units as the pile. Fall back to the live poller's size_on_disk only
+// if that export isn't present; it is compressed on-disk bytes plus
+// undo files, so it is both wrong-units and too large, and the bar
+// understates against it. The numerator is odoTarget in serialized
+// bytes either way.
+//
+// Drawn from here, not from poll(): the numerator lands when the history
+// fetch resolves, and waiting for the next poll to notice it put the bar
+// on screen a full poll interval after everything else.
+let liveChainBytes = 0;
+function renderChainBar(){
+  const chain = CUM && CUM.chain;
+  const denom = chain ? chain.serialized_bytes : liveChainBytes;
+  if(!(denom > 0 && odoTarget > 0)) return;
+  const chainPct = odoTarget / denom * 100;
+  $('chainbarwrap').style.display = 'block';
+  // If the genesis scan hasn't finished, the denominator is real but
+  // partial — say so, rather than implying it is the whole chain.
+  const label = (chain && !chain.from_genesis)
+    ? `THE CHAIN THROUGH BLOCK ${chain.scanned_to.toLocaleString()}`
+    : 'THE WHOLE BLOCKCHAIN';
+  $('chaintitle').innerHTML =
+    `${label} · <b>${(denom/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
+  $('chainfill').style.width = chainPct.toFixed(2) + '%';
+  // Shares only: the title above states the chain size and the headline
+  // states the pile, so repeating either here is the third printing of
+  // a number the reader has already seen twice.
+  $('chaindata').innerHTML = `non-monetary <b>${chainPct.toFixed(1)}%</b>`;
+  $('chainrest').innerHTML =
+    `everything else <b>${(100-chainPct).toFixed(1)}%</b>`;
 }
 function odoFrame(){
   if(odoTarget > odoShown){
@@ -1078,44 +1125,13 @@ async function poll(){
   d.blocks.forEach(b => known.add(b.height));
   if(d.blocks.length) lastBlockTime = d.blocks[0].time;
 
-  if(odoSeeded || odoGate === 0) setOdoTarget();
-
-  // chain context bar: the pile at true scale against the whole chain.
-  // Same rounding everywhere — 44.3 GB in the legend beside 44.275 GB in
-  // the odometer reads as two different numbers to anyone not looking
-  // closely, so both now come off the same value at the same precision.
-  //
-  // DENOMINATOR: prefer the from-node serialized total (CUM.chain), which
-  // is summed from block_size across the genesis OP_RETURN scan — same
-  // units as the pile. Fall back to the live poller's size_on_disk only
-  // if that export isn't present; it is compressed on-disk bytes plus
-  // undo files, so it is both wrong-units and too large, and the bar
-  // understates against it. The numerator is odoTarget in serialized
-  // bytes either way.
-  const chain = CUM && CUM.chain;
-  const denom = chain ? chain.serialized_bytes : d.chain_bytes;
-  let chainPct = null;
-  if(denom > 0 && odoTarget > 0){
-    chainPct = odoTarget / denom * 100;
-    $('chainbarwrap').style.display = 'block';
-    // If the genesis scan hasn't finished, the denominator is real but
-    // partial — say so, rather than implying it is the whole chain.
-    const partial = chain && !chain.from_genesis;
-    const label = (chain && chain.from_genesis)
-      ? 'THE WHOLE BLOCKCHAIN'
-      : partial
-        ? `THE CHAIN THROUGH BLOCK ${chain.scanned_to.toLocaleString()}`
-        : 'THE WHOLE BLOCKCHAIN';
-    $('chaintitle').innerHTML =
-      `${label} · <b>${(denom/1e9).toFixed(0)} GB</b> · DRAWN TO SCALE`;
-    $('chainfill').style.width = chainPct.toFixed(2) + '%';
-    // Shares only: the title above states the chain size and the headline
-    // states the pile, so repeating either here is the third printing of
-    // a number the reader has already seen twice.
-    $('chaindata').innerHTML = `non-monetary <b>${chainPct.toFixed(1)}%</b>`;
-    $('chainrest').innerHTML =
-      `everything else <b>${(100-chainPct).toFixed(1)}%</b>`;
+  liveChainBytes = d.chain_bytes || 0;
+  // The history only grows when a block lands, so only refetch it then.
+  if((odoSeeded || odoGate === 0) && d.tip !== histTip){
+    histTip = d.tip;
+    setOdoTarget();
   }
+  renderChainBar();
 
   // Trailing-24h accumulation from the poller's persistent history.
   // Until a full day exists the label shows the real span, so a partial
@@ -1534,10 +1550,16 @@ function renderPile(){
 }
 
 (async ()=>{
+  // Both files are needed before the headline and the chain bar can be
+  // drawn, and neither depends on the other, so they load side by side.
+  const histP = fetchHistory();
   await seedOdometer();
   try { renderMadeOf(); } catch(e){}
   try { odoBreakdown(); } catch(e){}
   try { renderPile(); } catch(e){ chartError('c_pile', e); }
+  const hist = await histP;
+  if(hist.length) histTip = Math.max(...hist.map(b=>b.height));
+  await setOdoTarget(hist);
   await poll();
   setInterval(poll, 5000);
   setInterval(tick, 1000);
